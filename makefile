@@ -11,11 +11,13 @@ BINDIR := bin
 
 DBGOBJDIR := ${OBJDIR}/debug
 DBGBINDIR := ${BINDIR}/debug
+DBGEXE := ${BINDIR}/debug/${EXE}
 DBGOBJS := ${addprefix ${DBGOBJDIR}/, ${OBJS}}
 DBGFLAGS := -D DEBUG -g
 
 RELOBJDIR := ${OBJDIR}/release
 RELBINDIR := ${BINDIR}/release
+RELEXE := ${BINDIR}/release/${EXE}
 RELOBJS := ${addprefix ${RELOBJDIR}/, ${OBJS}}
 RELFLAGS := 
 
@@ -23,28 +25,40 @@ RELFLAGS :=
 
 all: init release
 
-release: 
+release: ${RELEXE}
+
+${RELEXE}: ${RELOBJS}
+	${CC} ${RELOBJS} -o ${RELEXE}
+
+${RELOBJDIR}/main.o: ${SRCDIR}/main.c ${SRCDIR}/alloc.h
 	${CC} -c ${CFLAGS} ${RELFLAGS} ${SRCDIR}/main.c -o ${RELOBJDIR}/main.o
+
+${RELOBJDIR}/alloc.o: ${SRCDIR}/alloc.c ${SRCDIR}/alloc.h ${SRCDIR}/block.h
 	${CC} -c ${CFLAGS} ${RELFLAGS} ${SRCDIR}/alloc.c -o ${RELOBJDIR}/alloc.o
-	${CC} ${RELOBJS} -o ${RELBINDIR}/${EXE}
 
-debug: 
+debug: ${DBGEXE}
+
+${DBGEXE}: ${DBGOBJS}
+	${CC} ${DBGOBJS} -o ${DBGEXE}
+
+${DBGOBJDIR}/main.o: ${SRCDIR}/main.c ${SRCDIR}/alloc.h
 	${CC} -c ${CFLAGS} ${DBGFLAGS} ${SRCDIR}/main.c -o ${DBGOBJDIR}/main.o
+
+${DBGOBJDIR}/alloc.o: ${SRCDIR}/alloc.c ${SRCDIR}/alloc.h ${SRCDIR}/block.h
 	${CC} -c ${CFLAGS} ${DBGFLAGS} ${SRCDIR}/alloc.c -o ${DBGOBJDIR}/alloc.o
-	${CC} ${DBGOBJS} -o ${DBGBINDIR}/${EXE}
 
-relrun:
-	./${RELBINDIR}/${EXE}
+relrun: ${RELEXE}
+	./${RELEXE}
 
-dbgrun:
-	./${DBGBINDIR}/${EXE}
+dbgrun: ${DBGEXE}
+	./${DBGEXE}
 
 init:
 	@mkdir -p ${DBGBINDIR} ${RELBINDIR} ${DBGOBJDIR} ${RELOBJDIR}
 
 clean:
-	rm -f ${DBGOBJDIR}/*.o
-	rm -f ${DBGBINDIR}/*.out
-	rm -f ${RELOBJDIR}/*.o
-	rm -f ${RELBINDIR}/*.out
+	rm -f ${DBGOBJS}
+	rm -f ${DBGEXE}
+	rm -f ${RELOBJS}
+	rm -f ${RELEXE}
 
