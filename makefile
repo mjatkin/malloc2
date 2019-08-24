@@ -13,7 +13,7 @@ DBGOBJDIR := ${OBJDIR}/debug
 DBGBINDIR := ${BINDIR}/debug
 DBGEXE := ${BINDIR}/debug/${EXE}
 DBGOBJS := ${addprefix ${DBGOBJDIR}/, ${OBJS}}
-DBGFLAGS := -D DEBUG -g
+DBGFLAGS := -D DEBUG -g -O0
 
 RELOBJDIR := ${OBJDIR}/release
 RELBINDIR := ${BINDIR}/release
@@ -48,10 +48,10 @@ ${DBGOBJDIR}/alloc.o: ${SRCDIR}/alloc.c ${SRCDIR}/alloc.h ${SRCDIR}/block.h
 	${CC} -c ${CFLAGS} ${DBGFLAGS} ${SRCDIR}/alloc.c -o ${DBGOBJDIR}/alloc.o
 
 relrun: ${RELEXE}
-	./${RELEXE}
+	@./${RELEXE}
 
 dbgrun: ${DBGEXE}
-	./${DBGEXE}
+	@./${DBGEXE}
 
 init:
 	@mkdir -p ${DBGBINDIR} ${RELBINDIR} ${DBGOBJDIR} ${RELOBJDIR}
