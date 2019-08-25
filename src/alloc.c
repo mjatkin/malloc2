@@ -20,6 +20,19 @@ static struct block* alloc_list_tail = NULL;
 static struct block* freed_list_head = NULL;
 static struct block* freed_list_tail = NULL;
 
+static void list(struct block* block)
+{
+    while(block != NULL)
+    {
+        printf("-->Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p\n", 
+            (void*) block, (void*) block->next, 
+            (void*) block->prev, block->size, block->data);
+        block = block->next;
+    }
+    printf("-->Head: %p\n", (void*) freed_list_head);
+    printf("-->Tail: %p\n", (void*) freed_list_tail);
+}
+
 static void* change_break(size_t chunk_size)
 {
     #ifdef DEBUG
@@ -31,10 +44,6 @@ static void* change_break(size_t chunk_size)
 
 static struct block* create_block(size_t chunk_size)
 {
-    #ifdef DEBUG
-    printf("-->Creating new block...\n");
-    #endif
-
     struct block* current_block = 
         (struct block*) change_break(sizeof(struct block));
     
@@ -44,21 +53,15 @@ static struct block* create_block(size_t chunk_size)
     current_block->data = change_break(chunk_size);
 
     #ifdef DEBUG
-    printf("-->Created block (Next: %p, Prev: %p, Size: %ld, Data: %p)\n", 
-            (void*) current_block->next, (void*) current_block->prev,
-            current_block->size, current_block->data);
+    printf("-->Created block (Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p)\n", 
+            (void*) current_block, (void*) current_block->next, 
+            (void*) current_block->prev, current_block->size, current_block->data);
     #endif
     return current_block;
 }
 
 static void alloc_list_append(struct block* block)
 {
-    #ifdef DEBUG
-    printf("-->Appending block (Next: %p, Prev: %p, Size: %ld, Data: %p) to"
-            " back of alloc_list.\n", 
-            (void*) block->next, (void*) block->prev, block->size, block->data);
-    #endif
-
     if(alloc_list_head == NULL)
     {
         alloc_list_head = block;
@@ -69,15 +72,17 @@ static void alloc_list_append(struct block* block)
         block->prev = alloc_list_tail;
     }
     alloc_list_tail = block;
+
+    #ifdef DEBUG
+    printf("-->Appended block (Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p) to"
+            " back of alloc_list.\n", 
+            (void*) block, (void*) block->next, (void*) block->prev,
+            block->size, block->data);
+    #endif
 }
 
 static void freed_list_append(struct block* block)
 {
-    #ifdef DEBUG
-    printf("-->Appending block (Next: %p, Prev: %p, Size: %ld, Data: %p) to"
-            " back of freed_list.\n", 
-            (void*) block->next, (void*) block->prev, block->size, block->data);
-    #endif
     if(freed_list_head == NULL)
     {
         freed_list_head = block;
@@ -88,13 +93,19 @@ static void freed_list_append(struct block* block)
         block->prev = freed_list_tail;
     }
     freed_list_tail = block;
+
+    #ifdef DEBUG
+    printf("-->Appended block (Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p) to"
+            " back of freed_list.\n", 
+            (void*) block, (void*) block->next, (void*) block->prev, block->size, block->data);
+    #endif
 }
 
 static void list_delete(struct block* block)
 {
     #ifdef DEBUG
-    printf("-->Removing block (Next: %p, Prev: %p, Size: %ld, Data: %p) to\n", 
-            (void*) block->next, (void*) block->prev, block->size, block->data);
+    printf("-->Removing block (Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p)\n", 
+            (void*) block, (void*) block->next, (void*) block->prev, block->size, block->data);
     #endif
     if(block == alloc_list_head)
     {
@@ -117,20 +128,20 @@ static void list_delete(struct block* block)
     if(block->next != NULL)
     {
         block->next->prev = block->prev;
-        block->next = NULL;
     }
     if(block->prev != NULL)
     {
         block->prev->next = block->next;
-        block->prev = NULL;
     }
+    block->next = NULL;
+    block->prev = NULL;
 }
 
 static void* alloc_first(size_t chunk_size)
 {
     struct block* current_block = freed_list_head;
-    
-    while(current_block->next != NULL)
+
+    while(current_block != NULL)
     {
         if(current_block->size >= chunk_size)
         {   
@@ -142,9 +153,10 @@ static void* alloc_first(size_t chunk_size)
     }
 
     #ifdef DEBUG
-    printf("-->No valid block found...");
+    printf("-->No valid block found...\n");
     #endif
-    return (create_block(chunk_size)->data);
+    alloc_list_append(create_block(chunk_size));
+    return alloc_list_tail->data;
 }
 
 static void* alloc_best(size_t chunk_size)
@@ -159,6 +171,7 @@ static void* alloc_worst(size_t chunk_size)
 
 void* alloc(size_t chunk_size)
 {
+    list(freed_list_head);
     if(chunk_size == 0)
     {
         #ifdef DEBUG
@@ -203,25 +216,38 @@ void* alloc(size_t chunk_size)
 
 void dealloc(void* chunk)
 {
+    if(chunk == NULL)
+    {
+        #ifdef DEBUG
+        printf("-->NULL passed to dealloc, doing nothing...\n");
+        #endif
+        return;
+    }
     struct block* current_block = alloc_list_head;
     
-    do
-    {
-            printf("Current1: %p\n", current_block->data); 
-            printf("Current2: %p\n", chunk); 
+    while(current_block != NULL)
+    { 
+        if(current_block != alloc_list_head)
+        {
+            current_block = current_block->next;
+        }
         if(current_block->data == chunk)
         {  
+            #ifdef DEBUG
+            printf("-->Found a valid block (Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p)\n", 
+            (void*) current_block, (void*) current_block->next, (void*) current_block->prev, 
+            current_block->size, current_block->data);
+            #endif
             list_delete(current_block);
             freed_list_append(current_block);
             return;
         }
-        current_block = current_block->next;
-    } while(current_block->next != NULL);
+    }
 
     #ifdef DEBUG
-    printf("-->No valid block found...");
+    printf("-->No valid block found...\n");
     #endif
-    exit(3);
+    exit(1);
 }
 
 void set_stratergy(enum stratergy stratergy)

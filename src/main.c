@@ -14,16 +14,21 @@ int main(int argc, char* argv[])
         foo[i] = alloc(i);
     }
 
-    for(int i = 0; i < 10; ++i)
-    {
-        printf("Main: %p\n", foo[i]);
-    }
-
     for(int i = 1; i < 10; ++i)
     {
         dealloc(foo[i]);
     }
 
+    alloc(3);
+    printf("\n");
+    alloc(3);
+    printf("\n");
+    alloc(2);
+    printf("\n");
+    alloc(9);
+    printf("\n");
+    alloc(15);
+    printf("\n");
     printf("Main terminated.\n");
     return 0;
 }
