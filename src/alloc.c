@@ -64,9 +64,9 @@ static struct block* create_block(size_t chunk_size)
 static struct block* split_block(struct block* block, size_t new_size)
 {
     #ifdef DEBUG
-    printf("-->Splitting block (Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p)\n", 
+    printf("-->Splitting block (Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p) down to %ld and %ld\n", 
             (void*) block, (void*) block->next, 
-            (void*) block->prev, block->size, block->data);
+            (void*) block->prev, block->size, block->data, new_size, block->size - new_size);
     #endif
     struct block* new_block = create_block(block->size - new_size);
 
@@ -181,7 +181,39 @@ static void* alloc_first(size_t chunk_size)
 
 static void* alloc_best(size_t chunk_size)
 {
-    return NULL;
+    struct block* current_block = freed_list_head;
+    struct block* best_block = NULL;
+
+    while(current_block != NULL)
+    {
+        if(current_block->size >= chunk_size)
+        {   
+            if(best_block == NULL)
+            {
+                best_block = current_block;
+            }
+            else if(current_block->size < best_block->size)
+            {
+                best_block = current_block;
+            }
+        }
+        current_block = current_block->next;
+    }
+    if(best_block == NULL)
+    {
+        #ifdef DEBUG
+        printf("-->No valid block found...\n");
+        #endif
+        alloc_list_append(create_block(chunk_size));
+        return alloc_list_tail->data;
+    }
+    else if(best_block->size > chunk_size)
+    {
+        freed_list_append(split_block(best_block, chunk_size));
+    }
+    list_delete(best_block);
+    alloc_list_append(best_block);
+    return alloc_list_tail->data;
 }
 
 static void* alloc_worst(size_t chunk_size)
@@ -191,7 +223,7 @@ static void* alloc_worst(size_t chunk_size)
 
 void* alloc(size_t chunk_size)
 {
-    list(freed_list_head);
+    //list(freed_list_head);
     if(chunk_size == 0)
     {
         #ifdef DEBUG
@@ -236,6 +268,10 @@ void* alloc(size_t chunk_size)
 
 void dealloc(void* chunk)
 {
+    #ifdef DEBUG
+    printf("-->Attempting to dealloc a block...\n");
+    #endif
+
     if(chunk == NULL)
     {
         #ifdef DEBUG
@@ -247,14 +283,10 @@ void dealloc(void* chunk)
     
     while(current_block != NULL)
     { 
-        if(current_block != alloc_list_head)
-        {
-            current_block = current_block->next;
-        }
         if(current_block->data == chunk)
         {  
             #ifdef DEBUG
-            printf("-->Found a valid block (Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p)\n", 
+            printf("-->Found the block (Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p)\n", 
             (void*) current_block, (void*) current_block->next, (void*) current_block->prev, 
             current_block->size, current_block->data);
             #endif
@@ -262,6 +294,7 @@ void dealloc(void* chunk)
             freed_list_append(current_block);
             return;
         }
+        current_block = current_block->next;
     }
 
     #ifdef DEBUG
