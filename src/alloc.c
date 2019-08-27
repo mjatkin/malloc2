@@ -63,6 +63,11 @@ static struct block* create_block(size_t chunk_size)
 
 static struct block* split_block(struct block* block, size_t new_size)
 {
+    #ifdef DEBUG
+    printf("-->Splitting block (Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p)\n", 
+            (void*) block, (void*) block->next, 
+            (void*) block->prev, block->size, block->data);
+    #endif
     struct block* new_block = create_block(block->size - new_size);
 
     block->size = new_size;
@@ -156,6 +161,10 @@ static void* alloc_first(size_t chunk_size)
     {
         if(current_block->size >= chunk_size)
         {   
+            if(current_block->size > chunk_size)
+            {
+                freed_list_append(split_block(current_block, chunk_size));
+            }
             list_delete(current_block);
             alloc_list_append(current_block);
             return current_block->data;
