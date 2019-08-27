@@ -60,6 +60,17 @@ static struct block* create_block(size_t chunk_size)
     return current_block;
 }
 
+
+static struct block* split_block(struct block* block, size_t new_size)
+{
+    struct block* new_block = create_block(block->size - new_size);
+
+    block->size = new_size;
+    new_block->data = (void *) (((char *) block->data) + new_size);
+
+    return new_block;
+}
+
 static void alloc_list_append(struct block* block)
 {
     if(alloc_list_head == NULL)
