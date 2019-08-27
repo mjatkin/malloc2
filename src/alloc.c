@@ -20,18 +20,35 @@ static struct block* alloc_list_tail = NULL;
 static struct block* freed_list_head = NULL;
 static struct block* freed_list_tail = NULL;
 
-static void list(struct block* block)
+#ifdef DEBUG
+static void list()
 {
-    while(block != NULL)
+    struct block* alloc_current = alloc_list_head;
+    struct block* freed_current = freed_list_head;
+    
+    printf("\n\nALLOC LIST\n----------\n");
+    while(alloc_current != NULL)
+    {
+        printf("-->Block: %16.16p, Next: %16.16p, Prev: %16.16p, Size: %16.16ld, Data: %16.16p\n", 
+            (void*) alloc_current, (void*) alloc_current->next, 
+            (void*) alloc_current->prev, alloc_current->size, alloc_current->data);
+        alloc_current = alloc_current->next;
+    }
+    printf("-->Head: %p\n", (void*) alloc_list_head);
+    printf("-->Tail: %p\n", (void*) alloc_list_tail);
+
+    printf("\n\nFREED LIST\n----------\n");
+    while(freed_current != NULL)
     {
         printf("-->Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p\n", 
-            (void*) block, (void*) block->next, 
-            (void*) block->prev, block->size, block->data);
-        block = block->next;
+            (void*) freed_current, (void*) freed_current->next, 
+            (void*) freed_current->prev, freed_current->size, freed_current->data);
+        freed_current = freed_current->next;
     }
     printf("-->Head: %p\n", (void*) freed_list_head);
     printf("-->Tail: %p\n", (void*) freed_list_tail);
 }
+#endif
 
 static void* change_break(size_t chunk_size)
 {
@@ -218,20 +235,57 @@ static void* alloc_best(size_t chunk_size)
 
 static void* alloc_worst(size_t chunk_size)
 {
-    return NULL;
+    struct block* current_block = freed_list_head;
+    struct block* worst_block = NULL;
+
+    while(current_block != NULL)
+    {
+        if(current_block->size >= chunk_size)
+        {   
+            if(worst_block == NULL)
+            {
+                worst_block = current_block;
+            }
+            else if(current_block->size > worst_block->size)
+            {
+                worst_block = current_block;
+            }
+        }
+        current_block = current_block->next;
+    }
+    if(worst_block == NULL)
+    {
+        #ifdef DEBUG
+        printf("-->No valid block found...\n");
+        #endif
+        alloc_list_append(create_block(chunk_size));
+        return alloc_list_tail->data;
+    }
+    else if(worst_block->size > chunk_size)
+    {
+        freed_list_append(split_block(worst_block, chunk_size));
+    }
+    list_delete(worst_block);
+    alloc_list_append(worst_block);
+    return alloc_list_tail->data;
 }
 
 void* alloc(size_t chunk_size)
 {
-    //list(freed_list_head);
+    #ifdef DEBUG
+    list();
+    #endif
     if(chunk_size == 0)
     {
         #ifdef DEBUG
-        printf("-->Attempted to allocate 0 bytes\n");
+        printf("\n\n-->Attempted to allocate 0 bytes\n");
         #endif   
         return NULL;
     }
     
+    #ifdef DEBUG
+    printf("\n\n-->Allocating %ld bytes\n", chunk_size);
+    #endif   
     if(freed_list_head == NULL)
     {
         #ifdef DEBUG
@@ -268,17 +322,16 @@ void* alloc(size_t chunk_size)
 
 void dealloc(void* chunk)
 {
-    #ifdef DEBUG
-    printf("-->Attempting to dealloc a block...\n");
-    #endif
-
     if(chunk == NULL)
     {
         #ifdef DEBUG
-        printf("-->NULL passed to dealloc, doing nothing...\n");
+        printf("\n\n-->Attempting to dealloc NULL, did nothing\n");
         #endif
         return;
     }
+    #ifdef DEBUG
+    printf("\n\n-->Attempting to dealloc block with data %p...\n", chunk);
+    #endif
     struct block* current_block = alloc_list_head;
     
     while(current_block != NULL)

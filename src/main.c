@@ -7,7 +7,7 @@ int main(int argc, char* argv[])
         printf("-->DEBUG ENABLED\n");
     #endif
 
-    set_stratergy(best);
+    set_stratergy(worst);
     void* foo[10];
 
     for(int i = 0; i < 10; ++i)
@@ -21,15 +21,10 @@ int main(int argc, char* argv[])
     }
 
     alloc(3);
-    printf("\n");
     alloc(3);
-    printf("\n");
     alloc(2);
-    printf("\n");
     alloc(9);
-    printf("\n");
     alloc(15);
-    printf("\n");
     printf("Main terminated.\n");
     return 0;
 }
