@@ -29,7 +29,7 @@ static void list()
     printf("\n\nALLOC LIST\n----------\n");
     while(alloc_current != NULL)
     {
-        printf("-->Block: %16.16p, Next: %16.16p, Prev: %16.16p, Size: %16.16ld, Data: %16.16p\n", 
+        printf("-->Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p\n", 
             (void*) alloc_current, (void*) alloc_current->next, 
             (void*) alloc_current->prev, alloc_current->size, alloc_current->data);
         alloc_current = alloc_current->next;
@@ -322,6 +322,9 @@ void* alloc(size_t chunk_size)
 
 void dealloc(void* chunk)
 {
+    #ifdef DEBUG
+    list();
+    #endif
     if(chunk == NULL)
     {
         #ifdef DEBUG
