@@ -1,9 +1,9 @@
 CC := gcc
 CFLAGS := -Wall -pedantic -std=gnu99
 
-SRCS = main.c alloc.c
-OBJS = ${SRCS:.c=.o}
-EXE = malloc2.out
+SRCS := main.c alloc.c
+OBJS := ${SRCS:.c=.o}
+EXE := malloc2.out
 
 SRCDIR := src
 OBJDIR := obj

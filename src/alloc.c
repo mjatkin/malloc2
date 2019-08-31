@@ -205,7 +205,13 @@ static void* alloc_best(size_t chunk_size)
     {
         if(current_block->size >= chunk_size)
         {   
-            if(best_block == NULL)
+            if(current_block->size == chunk_size)
+            {
+                list_delete(current_block);
+                alloc_list_append(current_block);
+                return alloc_list_tail->data;
+            }
+            else if(best_block == NULL)
             {
                 best_block = current_block;
             }
@@ -242,7 +248,13 @@ static void* alloc_worst(size_t chunk_size)
     {
         if(current_block->size >= chunk_size)
         {   
-            if(worst_block == NULL)
+            if(current_block->size == chunk_size)
+            {
+                list_delete(current_block);
+                alloc_list_append(current_block);
+                return alloc_list_tail->data;
+            }
+            else if(worst_block == NULL)
             {
                 worst_block = current_block;
             }
@@ -275,10 +287,10 @@ void* alloc(size_t chunk_size)
     #ifdef DEBUG
     list();
     #endif
-    if(chunk_size == 0)
+    if((signed long long int)chunk_size <= 0)
     {
         #ifdef DEBUG
-        printf("\n\n-->Attempted to allocate 0 bytes\n");
+        printf("\n\n-->Attempted to allocate 0 or negative bytes\n");
         #endif   
         return NULL;
     }
