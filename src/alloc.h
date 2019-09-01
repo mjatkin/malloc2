@@ -27,6 +27,11 @@ enum stratergy{first, best, worst};
 void set_stratergy(enum stratergy stratergy);
 
 /*
+ * Prints out the current free and alloc lists
+ */
+void list();
+
+/*
  * Given the passed in size of memory that needs to be allocated, the free list
  * is traversed to see if it can fit it anywhere. If there is a chunk that can
  * hold the required data, it is added to the allocated list. If there is no

@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,7 +8,7 @@
 #include <sys/resource.h>
 #include "alloc.h"
 
-#define ARRAY_LENGTH 100
+#define ARRAY_LENGTH 10000
 
 struct tiny_block{
     char a[4];
@@ -42,7 +43,45 @@ int main(int argc, char* argv[])
         printf("-->DEBUG ENABLED\n");
     #endif
 
-    set_stratergy(best);
+    if(argc == 1)
+    { 
+        set_stratergy(first);
+    }
+    else if(argc >= 2)
+    {
+        if(strcmp(argv[1], "first") == 0)
+        {
+            set_stratergy(first);
+        }
+        else if(strcmp(argv[1], "best") == 0)
+        {
+            set_stratergy(best);
+        }
+        else if(strcmp(argv[1], "worst") == 0)
+        {
+            set_stratergy(worst);
+        }
+        else
+        {
+            printf("Error: argument '%s' not valid.\n", argv[1]);
+            exit(1);
+        }
+    }
+    if(argc == 3)
+    {
+        int cur = 0;
+        while(argv[2][cur] != '\0')
+        {
+            if(isdigit(argv[2][cur]))
+            ++cur;
+        }
+        total_allocs = argv[2];
+    }
+    else if(argc > 3)
+    {
+        printf("Error: Too many arguments\n");
+        exit(1);
+    }
 
     srand(time(0));
 
@@ -126,18 +165,23 @@ int main(int argc, char* argv[])
         printf("Can't open file!\n");
         exit(1);
     }
-
+    struct timeval start, end;
     char* line = NULL;
     size_t len = 0;
-    for(i = 0; i < ARRAY_LENGTH; ++i)
+
+    gettimeofday(&start, NULL);
+    for(int j = 0; j < ARRAY_LENGTH; ++j)
     {
-        string_alloc[i] = (char*) alloc(getline(&line, &len, names));
-//        memcpy(string_alloc[i], line, len);
-  //      printf("%s", string_alloc[i]);
+        string_alloc[j] = (char*) alloc(getline(&line, &len, names));
+    //          memcpy(string_alloc[i], line, len);
+    //        printf("%s", string_alloc[i]);
     }
+    gettimeofday(&end, NULL);
+    list();
+    printf("Time to allocate: %.3fms\n", (double) (end.tv_sec - start.tv_sec)*1000 + (double) (end.tv_usec - start.tv_usec)/1000);
 
     fclose(names);
-
+    /*
     struct rusage usage;
     getrusage(RUSAGE_SELF, &usage);
     printf("ru_utime:    %ld\n"
@@ -161,7 +205,7 @@ int main(int argc, char* argv[])
            , usage.ru_inblock, usage.ru_oublock, usage.ru_msgsnd
            , usage.ru_msgrcv, usage.ru_nsignals, usage.ru_nvcsw
            , usage.ru_nivcsw);
-
+    */
     printf("Main terminated.\n");
     return 0;
-}
+    }

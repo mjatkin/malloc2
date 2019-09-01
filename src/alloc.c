@@ -20,8 +20,7 @@ static struct block* alloc_list_tail = NULL;
 static struct block* freed_list_head = NULL;
 static struct block* freed_list_tail = NULL;
 
-#ifdef DEBUG
-static void list()
+void list()
 {
     struct block* alloc_current = alloc_list_head;
     struct block* freed_current = freed_list_head;
@@ -48,7 +47,6 @@ static void list()
     printf("-->Head: %p\n", (void*) freed_list_head);
     printf("-->Tail: %p\n", (void*) freed_list_tail);
 }
-#endif
 
 static void* change_break(size_t chunk_size)
 {
@@ -230,10 +228,8 @@ static void* alloc_best(size_t chunk_size)
         alloc_list_append(create_block(chunk_size));
         return alloc_list_tail->data;
     }
-    else if(best_block->size > chunk_size)
-    {
-        freed_list_append(split_block(best_block, chunk_size));
-    }
+    // If we make it here then we found a block that is larger
+    freed_list_append(split_block(best_block, chunk_size));
     list_delete(best_block);
     alloc_list_append(best_block);
     return alloc_list_tail->data;
@@ -273,10 +269,8 @@ static void* alloc_worst(size_t chunk_size)
         alloc_list_append(create_block(chunk_size));
         return alloc_list_tail->data;
     }
-    else if(worst_block->size > chunk_size)
-    {
-        freed_list_append(split_block(worst_block, chunk_size));
-    }
+    // If we make it here we found a block that is larger
+    freed_list_append(split_block(worst_block, chunk_size));
     list_delete(worst_block);
     alloc_list_append(worst_block);
     return alloc_list_tail->data;
