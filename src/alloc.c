@@ -24,6 +24,7 @@ void list()
 {
     struct block* alloc_current = alloc_list_head;
     struct block* freed_current = freed_list_head;
+    int alloc_count = 0, freed_count = 0, alloc_total = 0, freed_total = 0, alloc_avg = 0, freed_avg = 0;
     
     printf("\n\nALLOC LIST\n----------\n");
     while(alloc_current != NULL)
@@ -31,6 +32,8 @@ void list()
         printf("-->Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p\n", 
             (void*) alloc_current, (void*) alloc_current->next, 
             (void*) alloc_current->prev, alloc_current->size, alloc_current->data);
+        ++alloc_count;
+        alloc_total += alloc_current->size;
         alloc_current = alloc_current->next;
     }
     printf("-->Head: %p\n", (void*) alloc_list_head);
@@ -42,10 +45,17 @@ void list()
         printf("-->Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p\n", 
             (void*) freed_current, (void*) freed_current->next, 
             (void*) freed_current->prev, freed_current->size, freed_current->data);
+        ++freed_count;
+        freed_total += freed_current->size;
         freed_current = freed_current->next;
     }
     printf("-->Head: %p\n", (void*) freed_list_head);
     printf("-->Tail: %p\n", (void*) freed_list_tail);
+
+    printf("Alloc list size: %d\n", alloc_count);
+    printf("Freed list size: %d\n", freed_count);
+    printf("Alloc average block size: %f\n", (float)alloc_total/alloc_count);
+    printf("Freed average block size: %f\n", (float)freed_total/freed_count);
 }
 
 static void* change_break(size_t chunk_size)

@@ -8,7 +8,7 @@
 #include <sys/resource.h>
 #include "alloc.h"
 
-#define ARRAY_LENGTH 1000
+#define ARRAY_LENGTH 100
 #define STRING_LENGTH 4000
 
 struct tiny_block{
