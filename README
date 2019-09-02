@@ -1,0 +1,18 @@
+Matthew Atkin's (s3603797) allocator instructions!
+--------------------------------------------------
+Before running any make commands, we first need init the file structure
+    1. run 'make init'
+
+We can then compile for either release or debug (release will work just fine for
+the marking, debug just prints out a bunch of stuff that will slow the execution
+down tremendiously)
+    2. run 'make release' or 'make debug'
+
+We then run the program as release or debug depending on what we compiled
+    3. run './bin/release/malloc2.out [STRATERGY]' or './bin/debug/malloc2.out [STRATERGY]'
+
+The stratergies we can use are 'first', 'best' and 'worst'
+
+eg. make init
+    make release
+    ./bin/release/malloc2.out best
