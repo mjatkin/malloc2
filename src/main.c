@@ -189,4 +189,4 @@ int main(int argc, char* argv[])
     fclose(names);
     printf("Main terminated.\n");
     return 0;
-    }
+}
