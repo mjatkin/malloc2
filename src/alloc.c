@@ -13,18 +13,24 @@
 #include "alloc.h"
 #include "block.h"
 
+// Stratergy we are currently using for the allocator (default to first)
 static enum stratergy current_stratergy = first;
 
+// Heads and tails of both the alloc and freed list
 static struct block* alloc_list_head = NULL;
 static struct block* alloc_list_tail = NULL;
 static struct block* freed_list_head = NULL;
 static struct block* freed_list_tail = NULL;
 
+/*
+ * Prints out the current freed and alloc lists and all the data
+ * assosiated with them as well as some stats about them
+ */
 void list()
 {
     struct block* alloc_current = alloc_list_head;
     struct block* freed_current = freed_list_head;
-    int alloc_count = 0, freed_count = 0, alloc_total = 0, freed_total = 0, alloc_avg = 0, freed_avg = 0;
+    int alloc_count = 0, freed_count = 0, alloc_total = 0, freed_total = 0;
     
     printf("\n\nALLOC LIST\n----------\n");
     while(alloc_current != NULL)
@@ -52,12 +58,17 @@ void list()
     printf("-->Head: %p\n", (void*) freed_list_head);
     printf("-->Tail: %p\n", (void*) freed_list_tail);
 
+    // Here we print out the sizes of the lists as well as the average block size
     printf("Alloc list size: %d\n", alloc_count);
     printf("Freed list size: %d\n", freed_count);
     printf("Alloc average block size: %f\n", (float)alloc_total/alloc_count);
     printf("Freed average block size: %f\n", (float)freed_total/freed_count);
 }
 
+/*
+ * Simply push the program break forward by the passed in size and return
+ * the pointer to the data just created
+ */
 static void* change_break(size_t chunk_size)
 {
     #ifdef DEBUG
@@ -67,6 +78,9 @@ static void* change_break(size_t chunk_size)
     return sbrk(chunk_size);
 }
 
+/*
+ * Create a new block given a specified size and return a pointer to the block
+ */
 static struct block* create_block(size_t chunk_size)
 {
     struct block* current_block = 
@@ -85,7 +99,10 @@ static struct block* create_block(size_t chunk_size)
     return current_block;
 }
 
-
+/*
+ * Split the block passed in down to the size specified, returning a new 
+ * block with the size that is left over
+ */
 static struct block* split_block(struct block* block, size_t new_size)
 {
     #ifdef DEBUG
@@ -93,14 +110,23 @@ static struct block* split_block(struct block* block, size_t new_size)
             (void*) block, (void*) block->next, 
             (void*) block->prev, block->size, block->data, new_size, block->size - new_size);
     #endif
+
+    // Create a new block with the left over size
     struct block* new_block = create_block(block->size - new_size);
 
+    // Set the block we are splitting to its smaller new size
     block->size = new_size;
+
+    // Give the new block a pointer to the data of the old block, but offset
+    // by the new size.
     new_block->data = (void *) (((char *) block->data) + new_size);
 
     return new_block;
 }
 
+/*
+ * Append a block pointer to the back of the alloc list
+ */
 static void alloc_list_append(struct block* block)
 {
     if(alloc_list_head == NULL)
@@ -122,6 +148,9 @@ static void alloc_list_append(struct block* block)
     #endif
 }
 
+/*
+ * Append a block pointer to the back of the freed list
+ */
 static void freed_list_append(struct block* block)
 {
     if(freed_list_head == NULL)
@@ -142,6 +171,9 @@ static void freed_list_append(struct block* block)
     #endif
 }
 
+/*
+ * Delete the specified block from whichever list it is in
+ */
 static void list_delete(struct block* block)
 {
     #ifdef DEBUG
@@ -178,18 +210,29 @@ static void list_delete(struct block* block)
     block->prev = NULL;
 }
 
+/*
+ * Attempt to find a suitable block in the freed list for the size passed
+ * into the function using the first algorithm, if no suitable block is 
+ * found, we create a new block
+ */
 static void* alloc_first(size_t chunk_size)
 {
     struct block* current_block = freed_list_head;
 
+    // Iterate through every element in the freed list
     while(current_block != NULL)
     {
+        // If we find a valid block we go into here
         if(current_block->size >= chunk_size)
         {   
+            // If its not equal in size then we need to split the block
             if(current_block->size > chunk_size)
             {
                 freed_list_append(split_block(current_block, chunk_size));
             }
+
+            // We then need to move it over to the alloc list and return
+            // the pointer to the user
             list_delete(current_block);
             alloc_list_append(current_block);
             return current_block->data;
@@ -200,72 +243,98 @@ static void* alloc_first(size_t chunk_size)
     #ifdef DEBUG
     printf("-->No valid block found...\n");
     #endif
+
+    // If we get through the whole freed list without finding something valid
+    // we create a new block and add it to the alloc list
     alloc_list_append(create_block(chunk_size));
     return alloc_list_tail->data;
 }
 
+/*
+ * Attempt to find a suitable block in the freed list for the size passed
+ * into the function using the best algorithm, if no suitable block is 
+ * found, we create a new block
+ */
 static void* alloc_best(size_t chunk_size)
 {
     struct block* current_block = freed_list_head;
     struct block* best_block = NULL;
 
+    // Iterate through the freed list
     while(current_block != NULL)
     {
         if(current_block->size >= chunk_size)
         {   
+            // We found a valid block
             if(current_block->size == chunk_size)
             {
+                // The block is as good as we can get so we allocate it
+                // and terminate early
                 list_delete(current_block);
                 alloc_list_append(current_block);
                 return alloc_list_tail->data;
             }
             else if(best_block == NULL)
             {
+                // This block is the first valid and is not the exact size
+                // so we assign it straight up. This is to stop a possible null
+                // dereference in the following else if statement
                 best_block = current_block;
             }
             else if(current_block->size < best_block->size)
             {
+                // The block is less than our best so we set it as the new best
                 best_block = current_block;
             }
         }
         current_block = current_block->next;
     }
+
     if(best_block == NULL)
     {
         #ifdef DEBUG
         printf("-->No valid block found...\n");
         #endif
+
+        // We didnt find any valid blocks so we make a new one, allocate it
+        // and return the data
         alloc_list_append(create_block(chunk_size));
         return alloc_list_tail->data;
     }
-    // If we make it here then we found a block that is larger
+    // If we make it here then we found a valid block that wasnt equal in size
+    // so we have to split it and allocate it, then return the data to the user
     freed_list_append(split_block(best_block, chunk_size));
     list_delete(best_block);
     alloc_list_append(best_block);
     return alloc_list_tail->data;
 }
 
+/*
+ * Attempt to find a suitable block in the freed list for the size passed
+ * into the function using the worst algorithm, if no suitable block is 
+ * found, we create a new block
+ */
 static void* alloc_worst(size_t chunk_size)
 {
     struct block* current_block = freed_list_head;
     struct block* worst_block = NULL;
 
+    // Iterate through the freed list
     while(current_block != NULL)
     {
         if(current_block->size >= chunk_size)
         {   
-            if(current_block->size == chunk_size)
+            // We found a valid block
+            if(worst_block == NULL)
             {
-                list_delete(current_block);
-                alloc_list_append(current_block);
-                return alloc_list_tail->data;
-            }
-            else if(worst_block == NULL)
-            {
+                // This block is the first valid. This is to stop a possible
+                // null dereference in the following else if statement
                 worst_block = current_block;
             }
             else if(current_block->size > worst_block->size)
             {
+                // The block is bigger than our current worst so we set it as
+                // the new worst
                 worst_block = current_block;
             }
         }
@@ -276,16 +345,28 @@ static void* alloc_worst(size_t chunk_size)
         #ifdef DEBUG
         printf("-->No valid block found...\n");
         #endif
+
+        // We found no valid block so we create a new one, allocate it
+        // and return the data
         alloc_list_append(create_block(chunk_size));
         return alloc_list_tail->data;
     }
-    // If we make it here we found a block that is larger
-    freed_list_append(split_block(worst_block, chunk_size));
+    else if(worst_block->size != chunk_size)
+    {
+        // The block we found isnt equal so we need to split it
+        freed_list_append(split_block(worst_block, chunk_size));
+    }
+
+    // If we make it here we have a valid block, so we allocate it and return
+    // the data 
     list_delete(worst_block);
     alloc_list_append(worst_block);
     return alloc_list_tail->data;
 }
 
+/* 
+ * Attempt to allocate the given size using the set algorithm
+ */
 void* alloc(size_t chunk_size)
 {
     #ifdef DEBUG
@@ -295,7 +376,10 @@ void* alloc(size_t chunk_size)
     {
         #ifdef DEBUG
         printf("\n\n-->Attempted to allocate 0 or negative bytes\n");
-        #endif   
+        #endif
+
+        // If we get in here we are trying to allocate 0 or negative memory
+        // so we just return null
         return NULL;
     }
     
@@ -307,10 +391,15 @@ void* alloc(size_t chunk_size)
         #ifdef DEBUG
         printf("-->Freed list empty...\n");
         #endif
+
+        // If the free list is empty then we just create a new block
+        // and allocate it
         alloc_list_append(create_block(chunk_size));
         return alloc_list_tail->data;
     }
 
+    // Pass off the allocation to whichever alg is set if the free
+    // list needs to be traversed
     switch(current_stratergy)
     {
         case first:
@@ -336,6 +425,9 @@ void* alloc(size_t chunk_size)
     }
 }
 
+/*
+ * Attempt to dealloc the block containing the pointer passed in
+ */
 void dealloc(void* chunk)
 {
     #ifdef DEBUG
@@ -346,13 +438,18 @@ void dealloc(void* chunk)
         #ifdef DEBUG
         printf("\n\n-->Attempting to dealloc NULL, did nothing\n");
         #endif
+
+        // Deallocing NULL does nothing
         return;
     }
+
     #ifdef DEBUG
     printf("\n\n-->Attempting to dealloc block with data %p...\n", chunk);
     #endif
+
     struct block* current_block = alloc_list_head;
     
+    // Iterate through alloc list
     while(current_block != NULL)
     { 
         if(current_block->data == chunk)
@@ -362,6 +459,8 @@ void dealloc(void* chunk)
             (void*) current_block, (void*) current_block->next, (void*) current_block->prev, 
             current_block->size, current_block->data);
             #endif
+
+            // We've found the block, so we free it
             list_delete(current_block);
             freed_list_append(current_block);
             return;
@@ -372,9 +471,14 @@ void dealloc(void* chunk)
     #ifdef DEBUG
     printf("-->No valid block found...\n");
     #endif
+
+    // If we dont find the block we exit the program
     exit(1);
 }
 
+/*
+ * Set the stratergy to be used in allocation
+ */
 void set_stratergy(enum stratergy stratergy)
 {
     current_stratergy = stratergy;

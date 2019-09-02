@@ -8,9 +8,13 @@
 #include <sys/resource.h>
 #include "alloc.h"
 
-#define ARRAY_LENGTH 100
-#define STRING_LENGTH 4000
+//The amount of blocks to initially alloc and dealloc
+#define ARRAY_LENGTH    500 
+//The amount of strings to be allocated
+#define STRING_LENGTH   4000
 
+//Declare some structs that hold various sizes of data which will be allocated
+//and deallocated later
 struct tiny_block{
     char a[8];
 };
@@ -31,6 +35,7 @@ struct huge_block{
     char a[511];
 };
 
+//Declare them as globals so we dont have issues with overloading the stack
 struct tiny_block* tiny_alloc[ARRAY_LENGTH];
 struct small_block* small_alloc[ARRAY_LENGTH];
 struct medium_block* medium_alloc[ARRAY_LENGTH];
@@ -44,6 +49,7 @@ int main(int argc, char* argv[])
         printf("-->DEBUG ENABLED\n");
     #endif
 
+    //Parse the args, we only take the stratergy or if no input we set to first
     if(argc == 1)
     { 
         set_stratergy(first);
@@ -74,8 +80,10 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
+    //Random seed
     srand(time(0));
 
+    // Allocate a bunch of structs of varying sizes randomly
     int i, rnum, t_count = 0, s_count = 0, m_count = 0, l_count = 0, h_count = 0;
 
     for(i = 0; i < ARRAY_LENGTH; ++i)
@@ -106,49 +114,56 @@ int main(int argc, char* argv[])
         }
     }
 
+    //Dealloc all the allocations in random order
     for(i = 0; i < ARRAY_LENGTH; ++i)
     {
         rnum = rand() % 5;
         switch(rnum)
         {
-            case 0:
-                if(t_count > 0)
-                {
-                    --t_count;
-                    dealloc(tiny_alloc[t_count]);
-                    break;    
-                }
-            case 1:
-                if(s_count > 0)
-                {
-                    --s_count;
-                    dealloc(small_alloc[s_count]);
-                    break;    
-                }
-            case 2:
-                if(m_count > 0)
-                {
-                    --m_count;
-                    dealloc(medium_alloc[m_count]);
-                    break;    
-                }
-            case 3:
-                if(l_count > 0)
-                {
-                    --l_count;
-                    dealloc(large_alloc[l_count]);
-                    break;    
-                }
-            case 4:
-                if(h_count > 0)
-                {
-                    --h_count;
-                    dealloc(huge_alloc[h_count]);
-                    break;    
-                }
+            while(1)
+            {
+                case 0:
+                    if(t_count > 0)
+                    {
+                        --t_count;
+                        dealloc(tiny_alloc[t_count]);
+                        break;    
+                    }
+                case 1:
+                    if(s_count > 0)
+                    {
+                        --s_count;
+                        dealloc(small_alloc[s_count]);
+                        break;    
+                    }
+                case 2:
+                    if(m_count > 0)
+                    {
+                        --m_count;
+                        dealloc(medium_alloc[m_count]);
+                        break;    
+                    }
+                case 3:
+                    if(l_count > 0)
+                    {
+                        --l_count;
+                        dealloc(large_alloc[l_count]);
+                        break;    
+                    }
+                case 4:
+                    if(h_count > 0)
+                    {
+                        --h_count;
+                        dealloc(huge_alloc[h_count]);
+                        break;    
+                    }
+            }
         }
     }
 
+    // Now that we have a bunch of random blocks in our freed list
+    // we can start allocating random strings and test the performace
+    // of the allocation algorithms
     FILE* names; 
     names = fopen("data/first-names.txt", "r");
     if(names == NULL)
@@ -160,6 +175,7 @@ int main(int argc, char* argv[])
     char* line = NULL;
     size_t len = 0;
 
+    // We wrap the allocations in a timer
     gettimeofday(&start, NULL);
     for(int j = 0; j < STRING_LENGTH; ++j)
     {   
@@ -167,36 +183,10 @@ int main(int argc, char* argv[])
     }
     gettimeofday(&end, NULL);
     list();
-    printf("Time to allocate: %.3fms\n", (double) (end.tv_sec - start.tv_sec)*1000 + (double) (end.tv_usec - start.tv_usec)/1000);
+    printf("Time to allocate: %.3fms\n", (double) (end.tv_sec - start.tv_sec)*1000
+            + (double) (end.tv_usec - start.tv_usec)/1000);
 
     fclose(names);
-
-
-    /*
-    struct rusage usage;
-    getrusage(RUSAGE_SELF, &usage);
-    printf("ru_utime:    %ld\n"
-           "ru_stime:    %ld\n"
-           "ru_maxrss:   %ld\n"
-           "ru_ixrss:    %ld\n"
-           "ru_idrss:    %ld\n"
-           "ru_minflt:   %ld\n"
-           "ru_majflt:   %ld\n"
-           "ru_nswap:    %ld\n"
-           "ru_inblock:  %ld\n"
-           "ru_oublock:  %ld\n"
-           "ru_msgsnd:   %ld\n"
-           "ru_msgrcv:   %ld\n"
-           "ru_nsignals: %ld\n"
-           "ru_nvcsw:    %ld\n"
-           "ru_nivcsw:   %ld\n"
-           , usage.ru_utime.tv_usec, usage.ru_stime.tv_usec
-           , usage.ru_maxrss, usage.ru_ixrss, usage.ru_idrss
-           , usage.ru_minflt, usage.ru_majflt, usage.ru_nswap
-           , usage.ru_inblock, usage.ru_oublock, usage.ru_msgsnd
-           , usage.ru_msgrcv, usage.ru_nsignals, usage.ru_nvcsw
-           , usage.ru_nivcsw);
-    */
     printf("Main terminated.\n");
     return 0;
     }
