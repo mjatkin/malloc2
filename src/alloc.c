@@ -11,13 +11,14 @@
 #include <stdio.h>
 #include <unistd.h>
 #include "alloc.h"
+#include "locks.h"
 #include "list.h"
 
 // Stratergy we are currently using for the allocator (default to first)
 static enum stratergy current_stratergy = first;
 
 // Alloc and freed lists
-static struct linked_list alloc_list = {NULL, NULL};
+static struct linked_list alloc_list = {NULL, NULL, {PTHREAD_MUTEX_INITIALIZER, PTHREAD_}};
 static struct linked_list freed_list = {NULL, NULL};
 
 /*

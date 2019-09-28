@@ -1,7 +1,7 @@
 CC := gcc
 CFLAGS := -Wall -pedantic -std=gnu99
 
-SRCS := main.c alloc.c
+SRCS := main.c alloc.c locks.c
 OBJS := ${SRCS:.c=.o}
 EXE := malloc2.out
 
@@ -33,8 +33,11 @@ ${RELEXE}: ${RELOBJS}
 ${RELOBJDIR}/main.o: ${SRCDIR}/main.c ${SRCDIR}/alloc.h
 	${CC} -c ${CFLAGS} ${RELFLAGS} ${SRCDIR}/main.c -o ${RELOBJDIR}/main.o
 
-${RELOBJDIR}/alloc.o: ${SRCDIR}/alloc.c ${SRCDIR}/alloc.h ${SRCDIR}/list.h
+${RELOBJDIR}/alloc.o: ${SRCDIR}/alloc.c ${SRCDIR}/alloc.h ${SRCDIR}/list.h ${SRCDIR}/locks.h
 	${CC} -c ${CFLAGS} ${RELFLAGS} ${SRCDIR}/alloc.c -o ${RELOBJDIR}/alloc.o
+
+${RELOBJDIR}/locks.o: ${SRCDIR}/locks.c ${SRCDIR}/locks.h
+	${CC} -c ${CFLAGS} ${RELFLAGS} ${SRCDIR}/locks.c -o ${RELOBJDIR}/locks.o
 
 debug: ${DBGEXE}
 
@@ -44,8 +47,11 @@ ${DBGEXE}: ${DBGOBJS}
 ${DBGOBJDIR}/main.o: ${SRCDIR}/main.c ${SRCDIR}/alloc.h
 	${CC} -c ${CFLAGS} ${DBGFLAGS} ${SRCDIR}/main.c -o ${DBGOBJDIR}/main.o
 
-${DBGOBJDIR}/alloc.o: ${SRCDIR}/alloc.c ${SRCDIR}/alloc.h ${SRCDIR}/list.h
+${DBGOBJDIR}/alloc.o: ${SRCDIR}/alloc.c ${SRCDIR}/alloc.h ${SRCDIR}/list.h ${SRCDIR}/locks.h
 	${CC} -c ${CFLAGS} ${DBGFLAGS} ${SRCDIR}/alloc.c -o ${DBGOBJDIR}/alloc.o
+
+${DBJOBJDIR}/locks.o: ${SRCDIR}/locks.c ${SRCDIR}/locks.h
+	${CC} -c ${CFLAGS} ${DBJFLAGS} ${SRCDIR}/locks.c -o ${DBJOBJDIR}/locks.o
 
 relrun: ${RELEXE}
 	@./${RELEXE}
