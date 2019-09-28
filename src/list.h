@@ -1,5 +1,5 @@
 /*
- * Contains the definition of a memory block.
+ * Contains the definition of the lists and memory blocks.
  *
  * Matthew Atkin
  * s3603797
@@ -14,3 +14,9 @@ struct block
     size_t size;
     void* data;
 } block;
+
+struct linked_list
+{
+    struct block* head;
+    struct block* tail;
+} linked_list;

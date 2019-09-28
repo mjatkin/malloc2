@@ -11,16 +11,14 @@
 #include <stdio.h>
 #include <unistd.h>
 #include "alloc.h"
-#include "block.h"
+#include "list.h"
 
 // Stratergy we are currently using for the allocator (default to first)
 static enum stratergy current_stratergy = first;
 
-// Heads and tails of both the alloc and freed list
-static struct block* alloc_list_head = NULL;
-static struct block* alloc_list_tail = NULL;
-static struct block* freed_list_head = NULL;
-static struct block* freed_list_tail = NULL;
+// Alloc and freed lists
+static struct linked_list alloc_list = {NULL, NULL};
+static struct linked_list freed_list = {NULL, NULL};
 
 /*
  * Prints out the current freed and alloc lists and all the data
@@ -28,8 +26,8 @@ static struct block* freed_list_tail = NULL;
  */
 void list()
 {
-    struct block* alloc_current = alloc_list_head;
-    struct block* freed_current = freed_list_head;
+    struct block* alloc_current = alloc_list.head;
+    struct block* freed_current = freed_list.head;
     int alloc_count = 0, freed_count = 0, alloc_total = 0, freed_total = 0;
     
     printf("\n\nALLOC LIST\n----------\n");
@@ -42,8 +40,8 @@ void list()
         alloc_total += alloc_current->size;
         alloc_current = alloc_current->next;
     }
-    printf("-->Head: %p\n", (void*) alloc_list_head);
-    printf("-->Tail: %p\n", (void*) alloc_list_tail);
+    printf("-->Head: %p\n", (void*) alloc_list.head);
+    printf("-->Tail: %p\n", (void*) alloc_list.tail);
 
     printf("\n\nFREED LIST\n----------\n");
     while(freed_current != NULL)
@@ -55,8 +53,8 @@ void list()
         freed_total += freed_current->size;
         freed_current = freed_current->next;
     }
-    printf("-->Head: %p\n", (void*) freed_list_head);
-    printf("-->Tail: %p\n", (void*) freed_list_tail);
+    printf("-->Head: %p\n", (void*) freed_list.head);
+    printf("-->Tail: %p\n", (void*) freed_list.tail);
 
     // Here we print out the sizes of the lists as well as the average block size
     printf("Alloc list size: %d\n", alloc_count);
@@ -129,16 +127,16 @@ static struct block* split_block(struct block* block, size_t new_size)
  */
 static void alloc_list_append(struct block* block)
 {
-    if(alloc_list_head == NULL)
+    if(alloc_list.head == NULL)
     {
-        alloc_list_head = block;
+        alloc_list.head = block;
     }
-    if(alloc_list_tail != NULL)
+    if(alloc_list.tail != NULL)
     {
-        alloc_list_tail->next = block;
-        block->prev = alloc_list_tail;
+        alloc_list.tail->next = block;
+        block->prev = alloc_list.tail;
     }
-    alloc_list_tail = block;
+    alloc_list.tail = block;
 
     #ifdef DEBUG
     printf("-->Appended block (Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p) to"
@@ -153,16 +151,16 @@ static void alloc_list_append(struct block* block)
  */
 static void freed_list_append(struct block* block)
 {
-    if(freed_list_head == NULL)
+    if(freed_list.head == NULL)
     {
-        freed_list_head = block;
+        freed_list.head = block;
     }
-    if(freed_list_tail != NULL)
+    if(freed_list.tail != NULL)
     {
-        freed_list_tail->next = block;
-        block->prev = freed_list_tail;
+        freed_list.tail->next = block;
+        block->prev = freed_list.tail;
     }
-    freed_list_tail = block;
+    freed_list.tail = block;
 
     #ifdef DEBUG
     printf("-->Appended block (Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p) to"
@@ -180,22 +178,22 @@ static void list_delete(struct block* block)
     printf("-->Removing block (Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p)\n", 
             (void*) block, (void*) block->next, (void*) block->prev, block->size, block->data);
     #endif
-    if(block == alloc_list_head)
+    if(block == alloc_list.head)
     {
-        alloc_list_head = block->next;
+        alloc_list.head = block->next;
     } 
-    else if(block == freed_list_head)
+    else if(block == freed_list.head)
     {
-        freed_list_head = block->next;
+        freed_list.head = block->next;
     }
 
-    if(block == alloc_list_tail)
+    if(block == alloc_list.tail)
     {
-        alloc_list_tail = block->prev;
+        alloc_list.tail = block->prev;
     } 
-    else if(block == freed_list_tail)
+    else if(block == freed_list.tail)
     {
-        freed_list_tail = block->prev;
+        freed_list.tail = block->prev;
     }
 
     if(block->next != NULL)
@@ -217,7 +215,7 @@ static void list_delete(struct block* block)
  */
 static void* alloc_first(size_t chunk_size)
 {
-    struct block* current_block = freed_list_head;
+    struct block* current_block = freed_list.head;
 
     // Iterate through every element in the freed list
     while(current_block != NULL)
@@ -247,7 +245,7 @@ static void* alloc_first(size_t chunk_size)
     // If we get through the whole freed list without finding something valid
     // we create a new block and add it to the alloc list
     alloc_list_append(create_block(chunk_size));
-    return alloc_list_tail->data;
+    return alloc_list.tail->data;
 }
 
 /*
@@ -257,7 +255,7 @@ static void* alloc_first(size_t chunk_size)
  */
 static void* alloc_best(size_t chunk_size)
 {
-    struct block* current_block = freed_list_head;
+    struct block* current_block = freed_list.head;
     struct block* best_block = NULL;
 
     // Iterate through the freed list
@@ -272,7 +270,7 @@ static void* alloc_best(size_t chunk_size)
                 // and terminate early
                 list_delete(current_block);
                 alloc_list_append(current_block);
-                return alloc_list_tail->data;
+                return alloc_list.tail->data;
             }
             else if(best_block == NULL)
             {
@@ -299,14 +297,14 @@ static void* alloc_best(size_t chunk_size)
         // We didnt find any valid blocks so we make a new one, allocate it
         // and return the data
         alloc_list_append(create_block(chunk_size));
-        return alloc_list_tail->data;
+        return alloc_list.tail->data;
     }
     // If we make it here then we found a valid block that wasnt equal in size
     // so we have to split it and allocate it, then return the data to the user
     freed_list_append(split_block(best_block, chunk_size));
     list_delete(best_block);
     alloc_list_append(best_block);
-    return alloc_list_tail->data;
+    return alloc_list.tail->data;
 }
 
 /*
@@ -316,7 +314,7 @@ static void* alloc_best(size_t chunk_size)
  */
 static void* alloc_worst(size_t chunk_size)
 {
-    struct block* current_block = freed_list_head;
+    struct block* current_block = freed_list.head;
     struct block* worst_block = NULL;
 
     // Iterate through the freed list
@@ -349,7 +347,7 @@ static void* alloc_worst(size_t chunk_size)
         // We found no valid block so we create a new one, allocate it
         // and return the data
         alloc_list_append(create_block(chunk_size));
-        return alloc_list_tail->data;
+        return alloc_list.tail->data;
     }
     else if(worst_block->size != chunk_size)
     {
@@ -361,7 +359,7 @@ static void* alloc_worst(size_t chunk_size)
     // the data 
     list_delete(worst_block);
     alloc_list_append(worst_block);
-    return alloc_list_tail->data;
+    return alloc_list.tail->data;
 }
 
 /* 
@@ -386,7 +384,7 @@ void* alloc(size_t chunk_size)
     #ifdef DEBUG
     printf("\n\n-->Allocating %ld bytes\n", chunk_size);
     #endif   
-    if(freed_list_head == NULL)
+    if(freed_list.head == NULL)
     {
         #ifdef DEBUG
         printf("-->Freed list empty...\n");
@@ -395,7 +393,7 @@ void* alloc(size_t chunk_size)
         // If the free list is empty then we just create a new block
         // and allocate it
         alloc_list_append(create_block(chunk_size));
-        return alloc_list_tail->data;
+        return alloc_list.tail->data;
     }
 
     // Pass off the allocation to whichever alg is set if the free
@@ -447,7 +445,7 @@ void dealloc(void* chunk)
     printf("\n\n-->Attempting to dealloc block with data %p...\n", chunk);
     #endif
 
-    struct block* current_block = alloc_list_head;
+    struct block* current_block = alloc_list.head;
     
     // Iterate through alloc list
     while(current_block != NULL)

@@ -33,7 +33,7 @@ ${RELEXE}: ${RELOBJS}
 ${RELOBJDIR}/main.o: ${SRCDIR}/main.c ${SRCDIR}/alloc.h
 	${CC} -c ${CFLAGS} ${RELFLAGS} ${SRCDIR}/main.c -o ${RELOBJDIR}/main.o
 
-${RELOBJDIR}/alloc.o: ${SRCDIR}/alloc.c ${SRCDIR}/alloc.h ${SRCDIR}/block.h
+${RELOBJDIR}/alloc.o: ${SRCDIR}/alloc.c ${SRCDIR}/alloc.h ${SRCDIR}/list.h
 	${CC} -c ${CFLAGS} ${RELFLAGS} ${SRCDIR}/alloc.c -o ${RELOBJDIR}/alloc.o
 
 debug: ${DBGEXE}
@@ -44,7 +44,7 @@ ${DBGEXE}: ${DBGOBJS}
 ${DBGOBJDIR}/main.o: ${SRCDIR}/main.c ${SRCDIR}/alloc.h
 	${CC} -c ${CFLAGS} ${DBGFLAGS} ${SRCDIR}/main.c -o ${DBGOBJDIR}/main.o
 
-${DBGOBJDIR}/alloc.o: ${SRCDIR}/alloc.c ${SRCDIR}/alloc.h ${SRCDIR}/block.h
+${DBGOBJDIR}/alloc.o: ${SRCDIR}/alloc.c ${SRCDIR}/alloc.h ${SRCDIR}/list.h
 	${CC} -c ${CFLAGS} ${DBGFLAGS} ${SRCDIR}/alloc.c -o ${DBGOBJDIR}/alloc.o
 
 relrun: ${RELEXE}
