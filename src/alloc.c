@@ -222,9 +222,10 @@ static void* alloc_first(size_t chunk_size)
 {
     int split = 0, valid = 0;
     void* chunk;
+    struct block* current_block;
 
     r_lock(&freed_list.rw_lock);
-    struct block* current_block = freed_list.head;
+    current_block = freed_list.head;
 
     // Iterate through every element in the freed list
     while(current_block != NULL)
@@ -413,18 +414,7 @@ void* alloc(size_t chunk_size)
     
     #ifdef DEBUG
     printf("\n\n-->Allocating %ld bytes\n", chunk_size);
-    #endif   
-    if(freed_list.head == NULL)
-    {
-        #ifdef DEBUG
-        printf("-->Freed list empty...\n");
-        #endif
-
-        // If the free list is empty then we just create a new block
-        // and allocate it
-        alloc_list_append(create_block(chunk_size));
-        return alloc_list.tail->data;
-    }
+    #endif
 
     // Pass off the allocation to whichever alg is set if the free
     // list needs to be traversed
@@ -475,33 +465,51 @@ void dealloc(void* chunk)
     printf("\n\n-->Attempting to dealloc block with data %p...\n", chunk);
     #endif
 
-    struct block* current_block = alloc_list.head;
+    struct block* current_block;
+    int valid = 0;
+
+    r_lock(&alloc_list.rw_lock);
+    current_block = alloc_list.head;
     
     // Iterate through alloc list
     while(current_block != NULL)
     { 
         if(current_block->data == chunk)
         {  
-            #ifdef DEBUG
-            printf("-->Found the block (Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p)\n", 
-            (void*) current_block, (void*) current_block->next, (void*) current_block->prev, 
-            current_block->size, current_block->data);
-            #endif
-
-            // We've found the block, so we free it
-            list_delete(current_block);
-            freed_list_append(current_block);
-            return;
+            valid = 1;
+            break;
         }
         current_block = current_block->next;
     }
+    r_unlock(&alloc_list.rw_lock);
 
-    #ifdef DEBUG
-    printf("-->No valid block found...\n");
-    #endif
+    if(valid)
+    {
+        #ifdef DEBUG
+        r_lock(&alloc_list.rw_lock);
+        printf("-->Found the block (Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p)\n", 
+        (void*) current_block, (void*) current_block->next, (void*) current_block->prev, 
+        current_block->size, current_block->data);
+        r_unlock(&alloc_list.rw_lock);
+        #endif
 
-    // If we dont find the block we exit the program
-    exit(1);
+        // We've found the block, so we free it
+        w_lock(&alloc_list.rw_lock);
+        list_delete(current_block);
+        w_unlock(&alloc_list.rw_lock);
+
+        w_lock(&freed_list.rw_lock);
+        freed_list_append(current_block);
+        w_unlock(&freed_list.rw_lock);
+    }
+    else
+    {
+        #ifdef DEBUG
+        printf("-->No valid block found...\n");
+        #endif
+        // If we dont find the block we exit the program
+        exit(1);
+    }
 }
 
 /*
