@@ -9,9 +9,9 @@
 #include "alloc.h"
 
 //The amount of blocks to initially alloc and dealloc
-#define ARRAY_LENGTH    500 
+#define ARRAY_LENGTH    2
 //The amount of strings to be allocated
-#define STRING_LENGTH   4000
+#define STRING_LENGTH   2
 
 //Declare some structs that hold various sizes of data which will be allocated
 //and deallocated later

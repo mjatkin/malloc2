@@ -9,7 +9,6 @@
 #include <pthread.h>
 #include "locks.h"
 
-/*
 int rw_lock_init(struct rw_lock_t* rw_lock)
 {
     rw_lock->readers = 0;
@@ -40,7 +39,6 @@ int rw_lock_destroy(struct rw_lock_t* rw_lock)
     // Pass the return value back through
     return pthread_mutex_destroy(&rw_lock->internal_lock);
 }
-*/
 
 int r_lock(struct rw_lock_t* rw_lock)
 {

@@ -27,10 +27,10 @@ static struct linked_list freed_list = {NULL, NULL, RW_LOCK_INIT};
  */
 void list()
 {
-    struct block* alloc_current = alloc_list.head;
-    struct block* freed_current = freed_list.head;
     int alloc_count = 0, freed_count = 0, alloc_total = 0, freed_total = 0;
-    
+
+    r_lock(&alloc_list.rw_lock);
+    struct block* alloc_current = alloc_list.head;
     printf("\n\nALLOC LIST\n----------\n");
     while(alloc_current != NULL)
     {
@@ -43,7 +43,10 @@ void list()
     }
     printf("-->Head: %p\n", (void*) alloc_list.head);
     printf("-->Tail: %p\n", (void*) alloc_list.tail);
+    r_unlock(&alloc_list.rw_lock);
 
+    r_lock(&freed_list.rw_lock);
+    struct block* freed_current = freed_list.head;
     printf("\n\nFREED LIST\n----------\n");
     while(freed_current != NULL)
     {
@@ -56,6 +59,7 @@ void list()
     }
     printf("-->Head: %p\n", (void*) freed_list.head);
     printf("-->Tail: %p\n", (void*) freed_list.tail);
+    r_unlock(&freed_list.rw_lock);
 
     // Here we print out the sizes of the lists as well as the average block size
     printf("Alloc list size: %d\n", alloc_count);
@@ -216,6 +220,10 @@ static void list_delete(struct block* block)
  */
 static void* alloc_first(size_t chunk_size)
 {
+    int split = 0, valid = 0;
+    void* chunk;
+
+    r_lock(&freed_list.rw_lock);
     struct block* current_block = freed_list.head;
 
     // Iterate through every element in the freed list
@@ -227,26 +235,47 @@ static void* alloc_first(size_t chunk_size)
             // If its not equal in size then we need to split the block
             if(current_block->size > chunk_size)
             {
-                freed_list_append(split_block(current_block, chunk_size));
+                split = 1;
             }
-
+            valid = 1;
             // We then need to move it over to the alloc list and return
             // the pointer to the user
-            list_delete(current_block);
-            alloc_list_append(current_block);
-            return current_block->data;
+            break;
         }
         current_block = current_block->next;
     }
+    r_unlock(&freed_list.rw_lock);
+    
+    if(valid)
+    {
+        w_lock(&freed_list.rw_lock);
+        if(split)
+        {
+            freed_list_append(split_block(current_block, chunk_size));
+        }
+        list_delete(current_block);
+        w_unlock(&freed_list.rw_lock);
 
-    #ifdef DEBUG
-    printf("-->No valid block found...\n");
-    #endif
+        w_lock(&alloc_list.rw_lock);
+        alloc_list_append(current_block);
+        chunk = alloc_list.tail->data;
+        w_unlock(&alloc_list.rw_lock);
+    }
+    else
+    {
+        // If we get through the whole freed list without finding something valid
+        // we create a new block and add it to the alloc list
+        w_lock(&alloc_list.rw_lock);
+        alloc_list_append(create_block(chunk_size));
+        chunk = alloc_list.tail->data;
+        w_unlock(&alloc_list.rw_lock);
 
-    // If we get through the whole freed list without finding something valid
-    // we create a new block and add it to the alloc list
-    alloc_list_append(create_block(chunk_size));
-    return alloc_list.tail->data;
+        #ifdef DEBUG
+        printf("-->No valid block found...\n");
+        #endif
+    }
+
+    return chunk;
 }
 
 /*

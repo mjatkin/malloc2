@@ -50,8 +50,8 @@ ${DBGOBJDIR}/main.o: ${SRCDIR}/main.c ${SRCDIR}/alloc.h
 ${DBGOBJDIR}/alloc.o: ${SRCDIR}/alloc.c ${SRCDIR}/alloc.h ${SRCDIR}/list.h ${SRCDIR}/locks.h
 	${CC} -c ${CFLAGS} ${DBGFLAGS} ${SRCDIR}/alloc.c -o ${DBGOBJDIR}/alloc.o
 
-${DBJOBJDIR}/locks.o: ${SRCDIR}/locks.c ${SRCDIR}/locks.h
-	${CC} -c ${CFLAGS} ${DBJFLAGS} ${SRCDIR}/locks.c -o ${DBJOBJDIR}/locks.o
+${DBGOBJDIR}/locks.o: ${SRCDIR}/locks.c ${SRCDIR}/locks.h
+	${CC} -c ${CFLAGS} ${DBGFLAGS} ${SRCDIR}/locks.c -o ${DBGOBJDIR}/locks.o
 
 relrun: ${RELEXE}
 	@./${RELEXE}
