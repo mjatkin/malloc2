@@ -7,10 +7,13 @@
  */
 #include <stddef.h>
 
+enum location{ALLOCD, FREED, VOID};
+
 struct block
 {
     struct block* next;
     struct block* prev;
+    enum location location;
     size_t size;
     void* data;
 } block;

@@ -34,8 +34,8 @@ void list()
     printf("\n\nALLOC LIST\n----------\n");
     while(alloc_current != NULL)
     {
-        printf("-->Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p\n", 
-            (void*) alloc_current, (void*) alloc_current->next, 
+        printf("-->Block: %p, Next: %p, Location: %d, Prev: %p, Size: %ld, Data: %p\n", 
+            (void*) alloc_current, (void*) alloc_current->next, alloc_current->location,
             (void*) alloc_current->prev, alloc_current->size, alloc_current->data);
         ++alloc_count;
         alloc_total += alloc_current->size;
@@ -50,8 +50,8 @@ void list()
     printf("\n\nFREED LIST\n----------\n");
     while(freed_current != NULL)
     {
-        printf("-->Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p\n", 
-            (void*) freed_current, (void*) freed_current->next, 
+        printf("-->Block: %p, Next: %p, Location: %d, Prev: %p, Size: %ld, Data: %p\n", 
+            (void*) freed_current, (void*) freed_current->next, freed_current->location, 
             (void*) freed_current->prev, freed_current->size, freed_current->data);
         ++freed_count;
         freed_total += freed_current->size;
@@ -91,6 +91,7 @@ static struct block* create_block(size_t chunk_size)
     
     current_block->next = NULL;
     current_block->prev = NULL;
+    current_block->location = VOID;
     current_block->size = chunk_size;
     current_block->data = change_break(chunk_size);
 
@@ -143,6 +144,8 @@ static void alloc_list_append(struct block* block)
     }
     alloc_list.tail = block;
 
+    block->location = ALLOCD;
+
     #ifdef DEBUG
     printf("-->Appended block (Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p) to"
             " back of alloc_list.\n", 
@@ -166,6 +169,8 @@ static void freed_list_append(struct block* block)
         block->prev = freed_list.tail;
     }
     freed_list.tail = block;
+
+    block->location = FREED;
 
     #ifdef DEBUG
     printf("-->Appended block (Block: %p, Next: %p, Prev: %p, Size: %ld, Data: %p) to"
@@ -211,6 +216,7 @@ static void list_delete(struct block* block)
     }
     block->next = NULL;
     block->prev = NULL;
+    block->location = VOID;
 }
 
 /*
@@ -220,70 +226,77 @@ static void list_delete(struct block* block)
  */
 static void* alloc_first(size_t chunk_size)
 {
-    int split = 0, valid = 0;
+    int split = 0, valid = 0, done = 0;
     void* chunk;
     struct block* current_block;
-
-    r_lock(&freed_list.rw_lock);
-    current_block = freed_list.head;
-
-    // Iterate through every element in the freed list
-    while(current_block != NULL)
-    {
-        // If we find a valid block we go into here
-        if(current_block->size >= chunk_size)
-        {   
-            // If its not equal in size then we need to split the block
-            if(current_block->size > chunk_size)
-            {
-                split = 1;
-            }
-            valid = 1;
-            // We then need to move it over to the alloc list and return
-            // the pointer to the user
-            break;
-        }
-        current_block = current_block->next;
-    }
-    r_unlock(&freed_list.rw_lock);
     
-    /*
-     * We might need to check if the data we found to be valid has been
-     * modified or moves to some extent, otherwise the block may not be
-     * valid anymore.
-     *
-     * - Show what lists blocks are in?
-     */
-
-    if(valid)
+    while(!done)
     {
-        w_lock(&freed_list.rw_lock);
-        if(split)
+        r_lock(&freed_list.rw_lock);
+        current_block = freed_list.head;
+
+        // Iterate through every element in the freed list
+        while(current_block != NULL)
         {
-            freed_list_append(split_block(current_block, chunk_size));
+            // If we find a valid block we go into here
+            if(current_block->size >= chunk_size)
+            {   
+                // If its not equal in size then we need to split the block
+                if(current_block->size > chunk_size)
+                {
+                    split = 1;
+                }
+                valid = 1;
+                // We then need to move it over to the alloc list and return
+                // the pointer to the user
+                break;
+            }
+            current_block = current_block->next;
         }
-        list_delete(current_block);
-        w_unlock(&freed_list.rw_lock);
+        r_unlock(&freed_list.rw_lock);
+        
+        /*
+         * We might need to check if the data we found to be valid has been
+         * modified or moves to some extent, otherwise the block may not be
+         * valid anymore.
+         *
+         * - Show what lists blocks are in?
+         */
 
-        w_lock(&alloc_list.rw_lock);
-        alloc_list_append(current_block);
-        chunk = alloc_list.tail->data;
-        w_unlock(&alloc_list.rw_lock);
+        if(valid)
+        {
+            w_lock(&freed_list.rw_lock);
+            // Make sure someone else hasnt stolen our block we like
+            if(current_block->location == FREED)
+            {
+                if(split)
+                {
+                    freed_list_append(split_block(current_block, chunk_size));
+                }
+                list_delete(current_block);
+                w_unlock(&freed_list.rw_lock);
+
+                w_lock(&alloc_list.rw_lock);
+                alloc_list_append(current_block);
+                chunk = alloc_list.tail->data;
+                w_unlock(&alloc_list.rw_lock);
+                done = 1;
+            }
+        }
+        else
+        {
+            #ifdef DEBUG
+            printf("-->No valid block found...\n");
+            #endif
+            // If we get through the whole freed list without finding something valid
+            // we create a new block and add it to the alloc list
+            w_lock(&alloc_list.rw_lock);
+            alloc_list_append(create_block(chunk_size));
+            chunk = alloc_list.tail->data;
+            w_unlock(&alloc_list.rw_lock);
+            done = 1;
+        }
     }
-    else
-    {
-        // If we get through the whole freed list without finding something valid
-        // we create a new block and add it to the alloc list
-        w_lock(&alloc_list.rw_lock);
-        alloc_list_append(create_block(chunk_size));
-        chunk = alloc_list.tail->data;
-        w_unlock(&alloc_list.rw_lock);
-
-        #ifdef DEBUG
-        printf("-->No valid block found...\n");
-        #endif
-    }
-
     return chunk;
 }
 
@@ -501,14 +514,17 @@ void dealloc(void* chunk)
         r_unlock(&alloc_list.rw_lock);
         #endif
 
-        // We've found the block, so we free it
-        w_lock(&alloc_list.rw_lock);
-        list_delete(current_block);
-        w_unlock(&alloc_list.rw_lock);
+        // Make sure another thread hasn't already dealloced it
+        if(current_block->location == ALLOCD)
+        {
+            w_lock(&alloc_list.rw_lock);
+            list_delete(current_block);
+            w_unlock(&alloc_list.rw_lock);
 
-        w_lock(&freed_list.rw_lock);
-        freed_list_append(current_block);
-        w_unlock(&freed_list.rw_lock);
+            w_lock(&freed_list.rw_lock);
+            freed_list_append(current_block);
+            w_unlock(&freed_list.rw_lock);
+        }
     }
     else
     {
