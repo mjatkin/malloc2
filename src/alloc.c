@@ -18,8 +18,8 @@
 static enum stratergy current_stratergy = first;
 
 // Alloc and freed lists
-static struct linked_list alloc_list = {NULL, NULL, {PTHREAD_MUTEX_INITIALIZER, PTHREAD_}};
-static struct linked_list freed_list = {NULL, NULL};
+static struct linked_list alloc_list = {NULL, NULL, RW_LOCK_INIT};
+static struct linked_list freed_list = {NULL, NULL, RW_LOCK_INIT};
 
 /*
  * Prints out the current freed and alloc lists and all the data

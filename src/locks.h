@@ -8,6 +8,10 @@
  */
 #include <pthread.h>
 
+#define RW_LOCK_INIT \
+    {PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, \
+    PTHREAD_COND_INITIALIZER, 0, 0, 0, 0}
+
 struct rw_lock_t
 {
     pthread_mutex_t internal_lock;
@@ -19,13 +23,10 @@ struct rw_lock_t
     unsigned int writers_waiting;
 } rw_lock_t;
 
-const static struct rw_lock_t DEFAULT = {PTH}
-
-/*
 int rw_lock_init(struct rw_lock_t* rw_lock);
 
 int rw_lock_destroy(struct rw_lock_t* rw_lock);
-*/
+
 int r_lock(struct rw_lock_t* rw_lock);
 
 int r_unlock(struct rw_lock_t* rw_lock);
