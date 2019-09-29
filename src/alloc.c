@@ -247,6 +247,14 @@ static void* alloc_first(size_t chunk_size)
     }
     r_unlock(&freed_list.rw_lock);
     
+    /*
+     * We might need to check if the data we found to be valid has been
+     * modified or moves to some extent, otherwise the block may not be
+     * valid anymore.
+     *
+     * - Show what lists blocks are in?
+     */
+
     if(valid)
     {
         w_lock(&freed_list.rw_lock);
