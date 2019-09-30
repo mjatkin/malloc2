@@ -226,61 +226,79 @@ static void list_delete(struct block* block)
  */
 static void* alloc_first(size_t chunk_size)
 {
-    int split = 0, valid = 0, done = 0;
-    void* chunk;
-    struct block* current_block;
+    struct block* current_block; // Our temporary block pointer
+    void* chunk; // The ptr to the chunk we are returning at the end
+    int split = 0; // Flag to determine if we need to split the found block
+    int valid = 0; // Flag to determine if the current block is valid
     
-    while(!done)
+    /* We are essentially stuck in this loop until we either find no valid
+     * block or we find a valid block and then write to it before another
+     * thread. */
+    while(1)
     {
+        /* Here we lock down the list for reading and attempt to find a
+         * valid block */
         r_lock(&freed_list.rw_lock);
         current_block = freed_list.head;
-
-        // Iterate through every element in the freed list
         while(current_block != NULL)
         {
-            // If we find a valid block we go into here
             if(current_block->size >= chunk_size)
             {   
-                // If its not equal in size then we need to split the block
+                /* We've found a valid block so we need to check if it needs
+                 * to be split or if it is already the correct size then
+                 * simply set the valid flag and break out of the loop. */
                 if(current_block->size > chunk_size)
                 {
                     split = 1;
                 }
                 valid = 1;
-                // We then need to move it over to the alloc list and return
-                // the pointer to the user
                 break;
             }
             current_block = current_block->next;
         }
         r_unlock(&freed_list.rw_lock);
-        
-        /*
-         * We might need to check if the data we found to be valid has been
-         * modified or moves to some extent, otherwise the block may not be
-         * valid anymore.
-         *
-         * - Show what lists blocks are in?
-         */
 
+        /* If the block we found was valid then we attempt to allocate it, but
+         * if no valid block was found then we just append a new block to the
+         * back of the alloc list. */
         if(valid)
         {
+            /* Here we lock down the freed list and then attempt to remove
+             * the block we which to allocate. We need to be wary that another
+             * thread may have already altered this block inbetween when we
+             * read it and now. */
             w_lock(&freed_list.rw_lock);
-            // Make sure someone else hasnt stolen our block we like
             if(current_block->location == FREED)
             {
+                /* If we get in here then the block is still valid, no
+                 * other thread has written to it inbetween us reading it
+                 * and now. */
                 if(split)
                 {
                     freed_list_append(split_block(current_block, chunk_size));
                 }
                 list_delete(current_block);
-                w_unlock(&freed_list.rw_lock);
+            }
+            else
+            {
+                /* If we get down here then the block has been written to
+                 * since the last time we read it and might not be valid
+                 * anymore. So we mark as invalid and start the search
+                 * again. */
+                valid = 0;
+            }
+            w_unlock(&freed_list.rw_lock);
 
+            /* We only do this if our block was actually valid.
+             * We simply lock down the alloc list and append our block to
+             * the end. Returning the valid data ptr afterwards. */
+            if(valid)
+            {
                 w_lock(&alloc_list.rw_lock);
                 alloc_list_append(current_block);
                 chunk = alloc_list.tail->data;
                 w_unlock(&alloc_list.rw_lock);
-                done = 1;
+                return chunk;
             }
         }
         else
@@ -288,16 +306,17 @@ static void* alloc_first(size_t chunk_size)
             #ifdef DEBUG
             printf("-->No valid block found...\n");
             #endif
-            // If we get through the whole freed list without finding something valid
-            // we create a new block and add it to the alloc list
+            
+            /* Simply lock the alloc list down and create a new block to be
+             * appended to the end of the list. Returning the ptr to the new
+             * block. */
             w_lock(&alloc_list.rw_lock);
             alloc_list_append(create_block(chunk_size));
             chunk = alloc_list.tail->data;
             w_unlock(&alloc_list.rw_lock);
-            done = 1;
+            return chunk;
         }
     }
-    return chunk;
 }
 
 /*
