@@ -61,6 +61,16 @@ int r_lock(struct rw_lock_t* rw_lock);
  */
 int r_unlock(struct rw_lock_t* rw_lock);
 
+/*
+ * A writer can only aquire the lock if there are no current readers or
+ * writers. If there is, we increment the writers_waiting var and wait
+ * until all the readers and/or other writers are done.
+ */
 int w_lock(struct rw_lock_t* rw_lock);
 
+/*
+ * Once all the writing is done, we unlock and do one of two things. If there
+ * is more writers waiting, we signal the next one to wake up. If there are no
+ * more writers waiting, we simply wake up all the waiting readers and unlock.
+ */
 int w_unlock(struct rw_lock_t* rw_lock);
