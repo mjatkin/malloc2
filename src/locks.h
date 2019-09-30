@@ -52,25 +52,25 @@ int rw_lock_destroy(struct rw_lock_t* rw_lock);
  * If there is writers active or waiting, we increment the readers_waiting
  * var and wait until the writers have all been serviced.
  */
-int r_lock(struct rw_lock_t* rw_lock);
+void r_lock(struct rw_lock_t* rw_lock);
 
 /*
  * Once we have finished reading, we call this function to release the lock.
  * This simply decrements the readers var and if there are no others current
  * readers and at least 1 writer waiting, we signal a writer to wake up.
  */
-int r_unlock(struct rw_lock_t* rw_lock);
+void r_unlock(struct rw_lock_t* rw_lock);
 
 /*
  * A writer can only aquire the lock if there are no current readers or
  * writers. If there is, we increment the writers_waiting var and wait
  * until all the readers and/or other writers are done.
  */
-int w_lock(struct rw_lock_t* rw_lock);
+void w_lock(struct rw_lock_t* rw_lock);
 
 /*
  * Once all the writing is done, we unlock and do one of two things. If there
  * is more writers waiting, we signal the next one to wake up. If there are no
  * more writers waiting, we simply wake up all the waiting readers and unlock.
  */
-int w_unlock(struct rw_lock_t* rw_lock);
+void w_unlock(struct rw_lock_t* rw_lock);
