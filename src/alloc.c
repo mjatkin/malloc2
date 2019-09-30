@@ -491,13 +491,16 @@ void dealloc(void* chunk)
     #ifdef DEBUG
     list();
     #endif
+
+    struct block* current_block; // Current block we are looking at
+    int valid = 0; // Flag to say if a block is valid
+    
+    /* If we attempt to dealloc NULL then we just return */
     if(chunk == NULL)
     {
         #ifdef DEBUG
         printf("\n\n-->Attempting to dealloc NULL, did nothing\n");
         #endif
-
-        // Deallocing NULL does nothing
         return;
     }
 
@@ -505,17 +508,16 @@ void dealloc(void* chunk)
     printf("\n\n-->Attempting to dealloc block with data %p...\n", chunk);
     #endif
 
-    struct block* current_block;
-    int valid = 0;
-
+    /* Here we aquire the read lock for the alloc list and go through the list
+     * in search of the block we wish to deallocate. */
     r_lock(&alloc_list.rw_lock);
     current_block = alloc_list.head;
-    
-    // Iterate through alloc list
     while(current_block != NULL)
     { 
         if(current_block->data == chunk)
         {  
+            /* We've found the block! So we set it as valid and break out of
+             * the loop */
             valid = 1;
             break;
         }
@@ -523,6 +525,8 @@ void dealloc(void* chunk)
     }
     r_unlock(&alloc_list.rw_lock);
 
+    /* If we found the block then we attempt to remove it from the allocd
+     * list. However if we couldnt find it, we need to exit the program. */
     if(valid)
     {
         #ifdef DEBUG
@@ -533,24 +537,38 @@ void dealloc(void* chunk)
         r_unlock(&alloc_list.rw_lock);
         #endif
 
-        // Make sure another thread hasn't already dealloced it
+        /* Once we aquire the write lock, we need to make sure that another
+         * thread hasnt already deallocd the block. If its still in the list
+         * we delete it and relinquish the lock, otherwise we do nothing and
+         * return, as its already been deallocd. */
+        w_lock(&alloc_list.rw_lock);
         if(current_block->location == ALLOCD)
         {
-            w_lock(&alloc_list.rw_lock);
             list_delete(current_block);
-            w_unlock(&alloc_list.rw_lock);
-
-            w_lock(&freed_list.rw_lock);
-            freed_list_append(current_block);
-            w_unlock(&freed_list.rw_lock);
         }
+        else
+        {
+            valid = 0;
+        }
+        w_unlock(&alloc_list.rw_lock);
+
+        if(!valid)
+            return;
+
+        /* Simply aquire the freed list write lock and append the block to the
+         * freed list. */
+        w_lock(&freed_list.rw_lock);
+        freed_list_append(current_block);
+        w_unlock(&freed_list.rw_lock);
+        
     }
     else
     {
         #ifdef DEBUG
         printf("-->No valid block found...\n");
         #endif
-        // If we dont find the block we exit the program
+
+        /* If we dont find the block we exit the program */
         exit(1);
     }
 }
