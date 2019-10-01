@@ -568,8 +568,8 @@ void dealloc(void* chunk)
         printf("-->No valid block found...\n");
         #endif
 
-        /* If we dont find the block we exit the program */
-        exit(1);
+        /* If we dont find the block we abort the program */
+        abort();
     }
 }
 
