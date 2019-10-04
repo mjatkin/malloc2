@@ -1,5 +1,6 @@
 CC := gcc
 CFLAGS := -Wall -pedantic -std=gnu99
+LIBS := -lpthread
 
 SRCS := main.c alloc.c locks.c
 OBJS := ${SRCS:.c=.o}
@@ -19,7 +20,7 @@ RELOBJDIR := ${OBJDIR}/release
 RELBINDIR := ${BINDIR}/release
 RELEXE := ${BINDIR}/release/${EXE}
 RELOBJS := ${addprefix ${RELOBJDIR}/, ${OBJS}}
-RELFLAGS := 
+RELFLAGS := -g
 
 .PHONY: all clean debug release init relrun dbgrun
 
@@ -28,7 +29,7 @@ all: init release
 release: ${RELEXE}
 
 ${RELEXE}: ${RELOBJS}
-	${CC} ${RELOBJS} -o ${RELEXE}
+	${CC} ${RELOBJS} ${LIBS} -o ${RELEXE}
 
 ${RELOBJDIR}/main.o: ${SRCDIR}/main.c ${SRCDIR}/alloc.h
 	${CC} -c ${CFLAGS} ${RELFLAGS} ${SRCDIR}/main.c -o ${RELOBJDIR}/main.o
@@ -42,7 +43,7 @@ ${RELOBJDIR}/locks.o: ${SRCDIR}/locks.c ${SRCDIR}/locks.h
 debug: ${DBGEXE}
 
 ${DBGEXE}: ${DBGOBJS}
-	${CC} ${DBGOBJS} -o ${DBGEXE}
+	${CC} ${DBGOBJS} ${LIBS} -o ${DBGEXE}
 
 ${DBGOBJDIR}/main.o: ${SRCDIR}/main.c ${SRCDIR}/alloc.h
 	${CC} -c ${CFLAGS} ${DBGFLAGS} ${SRCDIR}/main.c -o ${DBGOBJDIR}/main.o

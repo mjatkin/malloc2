@@ -102,7 +102,7 @@ void w_lock(struct rw_lock_t* rw_lock)
 {
     pthread_mutex_lock(&rw_lock->internal_lock);
     
-    if(rw_lock->writing)
+    if(rw_lock->writing || rw_lock->readers > 0)
     {
         rw_lock->writers_waiting++;
         do
