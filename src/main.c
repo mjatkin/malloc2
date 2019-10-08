@@ -2,8 +2,8 @@
 #include "alloc.h"
 #include <stdio.h>
 
-#define ALLOCS_PER_THREAD 10
-#define NO_OF_THREADS 50
+#define ALLOCS_PER_THREAD 200
+#define NO_OF_THREADS 200
 
 void *thread_func(void *unused)
 {
@@ -12,20 +12,20 @@ void *thread_func(void *unused)
     printf("Thread %ld starting.\n", pthread_self());
     for(int i = 0; i < ALLOCS_PER_THREAD; ++i)
     {
-        alloc_ptrs[i] = alloc((i+1)*27);
-        printf("Thread %ld: alloc - %p\n", pthread_self(), alloc_ptrs[i]);
+        alloc_ptrs[i] = alloc((i+1)*10);
+        //printf("Thread %ld: alloc - %p\n", pthread_self(), alloc_ptrs[i]);
     }
     printf("Thread %ld deallocing.\n", pthread_self());
     for(int i = 0; i < ALLOCS_PER_THREAD; ++i)
     {
         dealloc(alloc_ptrs[i]);
-        printf("Thread %ld: dealloc - %p\n", pthread_self(), alloc_ptrs[i]);
+        //printf("Thread %ld: dealloc - %p\n", pthread_self(), alloc_ptrs[i]);
     }
     printf("Thread %ld allocing.\n", pthread_self());
     for(int i = 0; i < ALLOCS_PER_THREAD; ++i)
     {
-        alloc_ptrs[i] = alloc((i+1)*13);
-        printf("Thread %ld: alloc - %p\n", pthread_self(), alloc_ptrs[i]);
+        alloc_ptrs[i] = alloc((i+1)*4);
+        //printf("Thread %ld: alloc - %p\n", pthread_self(), alloc_ptrs[i]);
     }
     return 0;
 }

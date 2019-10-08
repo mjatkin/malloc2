@@ -7,13 +7,11 @@
  */
 #include <stddef.h>
 
-enum location{ALLOCD, FREED, VOID};
-
 struct block
 {
     struct block* next;
     struct block* prev;
-    enum location location;
+    pthread_mutex_t lock;
     size_t size;
     void* data;
 } block;
@@ -22,5 +20,5 @@ struct linked_list
 {
     struct block* head;
     struct block* tail;
-   // struct rw_lock_t rw_lock;
+    struct rw_lock_t rw_lock;
 } linked_list;
