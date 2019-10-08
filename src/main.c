@@ -2,8 +2,8 @@
 #include "alloc.h"
 #include <stdio.h>
 
-#define ALLOCS_PER_THREAD 2
-#define NO_OF_THREADS 10
+#define ALLOCS_PER_THREAD 10
+#define NO_OF_THREADS 50
 
 void *thread_func(void *unused)
 {

@@ -22,5 +22,5 @@ struct linked_list
 {
     struct block* head;
     struct block* tail;
-    struct rw_lock_t rw_lock;
+   // struct rw_lock_t rw_lock;
 } linked_list;
