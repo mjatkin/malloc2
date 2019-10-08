@@ -20,7 +20,7 @@ RELOBJDIR := ${OBJDIR}/release
 RELBINDIR := ${BINDIR}/release
 RELEXE := ${BINDIR}/release/${EXE}
 RELOBJS := ${addprefix ${RELOBJDIR}/, ${OBJS}}
-RELFLAGS := -g -O0
+RELFLAGS := 
 
 .PHONY: all clean debug release init relrun dbgrun
 

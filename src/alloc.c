@@ -22,9 +22,7 @@ static enum stratergy current_stratergy = first;
 // Alloc and freed lists
 static struct linked_list alloc_list = {NULL, NULL, RW_LOCK_INIT};
 static struct linked_list freed_list = {NULL, NULL, RW_LOCK_INIT};
-static pthread_rwlock_t alloc_lock = PTHREAD_RWLOCK_INITIALIZER;
-static pthread_rwlock_t freed_lock = PTHREAD_RWLOCK_INITIALIZER;
-static pthread_rwlock_t sbrk_lock = PTHREAD_RWLOCK_INITIALIZER;
+static pthread_mutex_t sbrk_lock = PTHREAD_MUTEX_INITIALIZER;
 
 /*
  * Prints out the current freed and alloc lists and all the data
@@ -34,9 +32,7 @@ void list()
 {
     int alloc_count = 0, freed_count = 0, alloc_total = 0, freed_total = 0;
 
-    //r_lock(&alloc_list.rw_lock);
-    pthread_rwlock_rdlock(&alloc_lock);
-    pthread_rwlock_rdlock(&freed_lock);
+    r_lock(&alloc_list.rw_lock);
     struct block* alloc_current = alloc_list.head;
     printf("\n\nALLOC LIST\n----------\n");
     while(alloc_current != NULL)
@@ -50,11 +46,9 @@ void list()
     }
     printf("-->Head: %p\n", (void*) alloc_list.head);
     printf("-->Tail: %p\n", (void*) alloc_list.tail);
-    //r_unlock(&alloc_list.rw_lock);
+    r_unlock(&alloc_list.rw_lock);
 
-
-    //r_lock(&freed_list.rw_lock);
-
+    r_lock(&freed_list.rw_lock);
     struct block* freed_current = freed_list.head;
     printf("\n\nFREED LIST\n----------\n");
     while(freed_current != NULL)
@@ -68,9 +62,7 @@ void list()
     }
     printf("-->Head: %p\n", (void*) freed_list.head);
     printf("-->Tail: %p\n", (void*) freed_list.tail);
-    //r_unlock(&freed_list.rw_lock);
-    pthread_rwlock_unlock(&alloc_lock);
-    pthread_rwlock_unlock(&freed_lock);
+    r_unlock(&freed_list.rw_lock);
 
     // Here we print out the sizes of the lists as well as the average block size
     printf("Alloc list size: %d\n", alloc_count);
@@ -90,10 +82,10 @@ static void* change_break(size_t chunk_size)
             chunk_size, sbrk(0), ((char*) sbrk(0)) + chunk_size);
     #endif
 
-    /* CHECK FOR INVALID RETURN HERE!!! */
     pthread_mutex_lock(&sbrk_lock);
     void* retval = sbrk(chunk_size);
     pthread_mutex_unlock(&sbrk_lock);
+
     if(retval == ((void*) -1))
     {
         perror("sbrk failed: ");
@@ -253,8 +245,7 @@ static void* alloc_first(size_t chunk_size)
     
     /* Here we lock down the list for reading and attempt to find a
      * valid block */
-    //r_lock(&freed_list.rw_lock);
-    pthread_rwlock_rdlock(&freed_lock);
+    r_lock(&freed_list.rw_lock);
     current_block = freed_list.head;
     while(current_block != NULL)
     {
@@ -275,8 +266,7 @@ static void* alloc_first(size_t chunk_size)
         }
         current_block = current_block->next;
     }
-    pthread_rwlock_unlock(&freed_lock);
-    //r_unlock(&freed_list.rw_lock);
+    r_unlock(&freed_list.rw_lock);
 
     /* If the block we found was valid then we attempt to allocate it, but
      * if no valid block was found then we just append a new block to the
@@ -287,26 +277,22 @@ static void* alloc_first(size_t chunk_size)
          * the block we which to allocate. We need to be wary that another
          * thread may have already altered this block inbetween when we
          * read it and now. */
-        //w_lock(&freed_list.rw_lock);
-        pthread_rwlock_wrlock(&freed_lock);
+        w_lock(&freed_list.rw_lock);
         if(split)
         {
             freed_list_append(split_block(current_block, chunk_size));
         }
         list_delete(current_block);
 
-        //w_unlock(&freed_list.rw_lock);
-        pthread_rwlock_unlock(&freed_lock);
+        w_unlock(&freed_list.rw_lock);
 
         /* We simply lock down the alloc list and append our block to
          * the end. Returning the valid data ptr afterwards. */
-        //w_lock(&alloc_list.rw_lock);
-        pthread_rwlock_wrlock(&alloc_lock);
+        w_lock(&alloc_list.rw_lock);
         alloc_list_append(current_block);
         pthread_mutex_unlock(&current_block->lock);
         chunk = alloc_list.tail->data;
-        //w_unlock(&alloc_list.rw_lock);
-        pthread_rwlock_unlock(&alloc_lock);
+        w_unlock(&alloc_list.rw_lock);
     }
     else
     {
@@ -317,12 +303,10 @@ static void* alloc_first(size_t chunk_size)
         /* Simply lock the alloc list down and create a new block to be
          * appended to the end of the list. Returning the ptr to the new
          * block. */
-        //w_lock(&alloc_list.rw_lock);
-        pthread_rwlock_wrlock(&alloc_lock);
+        w_lock(&alloc_list.rw_lock);
         alloc_list_append(create_block(chunk_size));
         chunk = alloc_list.tail->data;
-        //w_unlock(&alloc_list.rw_lock);
-        pthread_rwlock_unlock(&alloc_lock);
+        w_unlock(&alloc_list.rw_lock);
     }
     return chunk;
 }
@@ -334,56 +318,88 @@ static void* alloc_first(size_t chunk_size)
  */
 static void* alloc_best(size_t chunk_size)
 {
-    struct block* current_block = freed_list.head;
+    struct block* current_block;
     struct block* best_block = NULL;
+    void* chunk; // The ptr to the chunk we are returning at the end
+    int split = 1; // Flag to determine if we need to split the found block
+    int valid = 0; // Flag to determine if the current block is valid
 
     // Iterate through the freed list
+    r_lock(&freed_list.rw_lock);
+    current_block = freed_list.head;
     while(current_block != NULL)
     {
         if(current_block->size >= chunk_size)
         {   
             // We found a valid block
-            if(current_block->size == chunk_size)
+            if(pthread_mutex_trylock(&current_block->lock) == 0)
             {
-                // The block is as good as we can get so we allocate it
-                // and terminate early
-                list_delete(current_block);
-                alloc_list_append(current_block);
-                return alloc_list.tail->data;
-            }
-            else if(best_block == NULL)
-            {
-                // This block is the first valid and is not the exact size
-                // so we assign it straight up. This is to stop a possible null
-                // dereference in the following else if statement
-                best_block = current_block;
-            }
-            else if(current_block->size < best_block->size)
-            {
-                // The block is less than our best so we set it as the new best
-                best_block = current_block;
+                valid = 1;
+                if(current_block->size == chunk_size)
+                {
+                    // The block is as good as we can get so we allocate it
+                    // and terminate early
+                    best_block = current_block;
+                    split = 0;
+                    break;
+                }
+                else if(best_block == NULL)
+                {
+                    // This block is the first valid and is not the exact size
+                    // so we assign it straight up. This is to stop a possible null
+                    // dereference in the following else if statement
+                    best_block = current_block;
+                }
+                else if(current_block->size < best_block->size)
+                {
+                    // The block is less than our best so we set it as the new best
+                    pthread_mutex_unlock(&best_block->lock);
+                    best_block = current_block;
+                }
             }
         }
         current_block = current_block->next;
     }
+    r_unlock(&freed_list.rw_lock);
 
-    if(best_block == NULL)
+    if(valid)
+    {
+        /* Here we lock down the freed list and then attempt to remove
+         * the block we which to allocate. We need to be wary that another
+         * thread may have already altered this block inbetween when we
+         * read it and now. */
+        w_lock(&freed_list.rw_lock);
+        if(split)
+        {
+            freed_list_append(split_block(best_block, chunk_size));
+        }
+        list_delete(best_block);
+
+        w_unlock(&freed_list.rw_lock);
+
+        /* We simply lock down the alloc list and append our block to
+         * the end. Returning the valid data ptr afterwards. */
+        w_lock(&alloc_list.rw_lock);
+        alloc_list_append(best_block);
+        pthread_mutex_unlock(&best_block->lock);
+        chunk = alloc_list.tail->data;
+        w_unlock(&alloc_list.rw_lock);
+    }
+    else
     {
         #ifdef DEBUG
         printf("-->No valid block found...\n");
         #endif
-
-        // We didnt find any valid blocks so we make a new one, allocate it
-        // and return the data
+        
+        /* Simply lock the alloc list down and create a new block to be
+         * appended to the end of the list. Returning the ptr to the new
+         * block. */
+        w_lock(&alloc_list.rw_lock);
         alloc_list_append(create_block(chunk_size));
-        return alloc_list.tail->data;
+        chunk = alloc_list.tail->data;
+        w_unlock(&alloc_list.rw_lock);
     }
-    // If we make it here then we found a valid block that wasnt equal in size
-    // so we have to split it and allocate it, then return the data to the user
-    freed_list_append(split_block(best_block, chunk_size));
-    list_delete(best_block);
-    alloc_list_append(best_block);
-    return alloc_list.tail->data;
+    return chunk;
 }
 
 /*
@@ -393,52 +409,81 @@ static void* alloc_best(size_t chunk_size)
  */
 static void* alloc_worst(size_t chunk_size)
 {
-    struct block* current_block = freed_list.head;
+    struct block* current_block;
     struct block* worst_block = NULL;
+    void* chunk; // The ptr to the chunk we are returning at the end
+    int split = 1; // Flag to determine if we need to split the found block
+    int valid = 0; // Flag to determine if the current block is valid
 
     // Iterate through the freed list
+    r_lock(&freed_list.rw_lock);
+    current_block = freed_list.head;
     while(current_block != NULL)
     {
         if(current_block->size >= chunk_size)
         {   
             // We found a valid block
-            if(worst_block == NULL)
+            if(pthread_mutex_trylock(&current_block->lock) == 0)
             {
-                // This block is the first valid. This is to stop a possible
-                // null dereference in the following else if statement
-                worst_block = current_block;
-            }
-            else if(current_block->size > worst_block->size)
-            {
-                // The block is bigger than our current worst so we set it as
-                // the new worst
-                worst_block = current_block;
+                valid = 1;
+
+                if(worst_block == NULL)
+                {
+                    // This block is the first valid and is not the exact size
+                    // so we assign it straight up. This is to stop a possible null
+                    // dereference in the following else if statement
+                    worst_block = current_block;
+                }
+                else if(current_block->size > worst_block->size)
+                {
+                    // The block is less than our best so we set it as the new best
+                    pthread_mutex_unlock(&worst_block->lock);
+                    worst_block = current_block;
+                }
             }
         }
         current_block = current_block->next;
     }
-    if(worst_block == NULL)
+    r_unlock(&freed_list.rw_lock);
+
+    if(valid)
+    {
+        /* Here we lock down the freed list and then attempt to remove
+         * the block we which to allocate. We need to be wary that another
+         * thread may have already altered this block inbetween when we
+         * read it and now. */
+        w_lock(&freed_list.rw_lock);
+        if(worst_block->size != chunk_size)
+        {
+            freed_list_append(split_block(worst_block, chunk_size));
+        }
+        list_delete(worst_block);
+
+        w_unlock(&freed_list.rw_lock);
+
+        /* We simply lock down the alloc list and append our block to
+         * the end. Returning the valid data ptr afterwards. */
+        w_lock(&alloc_list.rw_lock);
+        alloc_list_append(worst_block);
+        pthread_mutex_unlock(&worst_block->lock);
+        chunk = alloc_list.tail->data;
+        w_unlock(&alloc_list.rw_lock);
+    }
+    else
     {
         #ifdef DEBUG
         printf("-->No valid block found...\n");
         #endif
-
-        // We found no valid block so we create a new one, allocate it
-        // and return the data
+        
+        /* Simply lock the alloc list down and create a new block to be
+         * appended to the end of the list. Returning the ptr to the new
+         * block. */
+        w_lock(&alloc_list.rw_lock);
         alloc_list_append(create_block(chunk_size));
-        return alloc_list.tail->data;
+        chunk = alloc_list.tail->data;
+        w_unlock(&alloc_list.rw_lock);
     }
-    else if(worst_block->size != chunk_size)
-    {
-        // The block we found isnt equal so we need to split it
-        freed_list_append(split_block(worst_block, chunk_size));
-    }
-
-    // If we make it here we have a valid block, so we allocate it and return
-    // the data 
-    list_delete(worst_block);
-    alloc_list_append(worst_block);
-    return alloc_list.tail->data;
+    return chunk;
 }
 
 /* 
@@ -473,7 +518,7 @@ void* alloc(size_t chunk_size)
             printf("-->Allocating using first fit...\n");
             #endif
             return alloc_first(chunk_size);
-        /*case best:
+        case best:
             #ifdef DEBUG
             printf("-->Allocating using best fit...\n");
             #endif
@@ -482,7 +527,7 @@ void* alloc(size_t chunk_size)
             #ifdef DEBUG
             printf("-->Allocating using worst fit...\n");
             #endif
-            return alloc_worst(chunk_size);*/
+            return alloc_worst(chunk_size);
         default:
             #ifdef DEBUG
             printf("-->Reached default case of alloc, something isn't right\n");
@@ -518,8 +563,7 @@ void dealloc(void* chunk)
 
     /* Here we aquire the read lock for the alloc list and go through the list
      * in search of the block we wish to deallocate. */
-    //r_lock(&alloc_list.rw_lock);
-    pthread_rwlock_rdlock(&alloc_lock);
+    r_lock(&alloc_list.rw_lock);
     current_block = alloc_list.head;
     while(current_block != NULL)
     { 
@@ -532,8 +576,7 @@ void dealloc(void* chunk)
         }
         current_block = current_block->next;
     }
-    //r_unlock(&alloc_list.rw_lock);
-    pthread_rwlock_unlock(&alloc_lock);
+    r_unlock(&alloc_list.rw_lock);
 
     /* If we found the block then we attempt to remove it from the allocd
      * list. However if we couldnt find it, we need to exit the program. */
@@ -547,20 +590,15 @@ void dealloc(void* chunk)
         r_unlock(&alloc_lock);
         #endif
 
-        //w_lock(&alloc_list.rw_lock);
-        pthread_rwlock_wrlock(&alloc_lock);
+        w_lock(&alloc_list.rw_lock);
         list_delete(current_block);
-        //w_unlock(&alloc_list.rw_lock);
-        pthread_rwlock_unlock(&alloc_lock);
+        w_unlock(&alloc_list.rw_lock);
 
         /* Simply aquire the freed list write lock and append the block to the
          * freed list. */
-        //w_lock(&freed_list.rw_lock);
-        pthread_rwlock_wrlock(&freed_lock);
+        w_lock(&freed_list.rw_lock);
         freed_list_append(current_block);
-        //w_unlock(&freed_list.rw_lock);
-        pthread_rwlock_unlock(&freed_lock);
-        
+        w_unlock(&freed_list.rw_lock);        
     }
     else
     {

@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 #define ALLOCS_PER_THREAD 200
-#define NO_OF_THREADS 200
+#define NO_OF_THREADS 100
 
 void *thread_func(void *unused)
 {
@@ -12,7 +12,7 @@ void *thread_func(void *unused)
     printf("Thread %ld starting.\n", pthread_self());
     for(int i = 0; i < ALLOCS_PER_THREAD; ++i)
     {
-        alloc_ptrs[i] = alloc((i+1)*10);
+        alloc_ptrs[i] = alloc((i+1)*5);
         //printf("Thread %ld: alloc - %p\n", pthread_self(), alloc_ptrs[i]);
     }
     printf("Thread %ld deallocing.\n", pthread_self());
@@ -24,7 +24,7 @@ void *thread_func(void *unused)
     printf("Thread %ld allocing.\n", pthread_self());
     for(int i = 0; i < ALLOCS_PER_THREAD; ++i)
     {
-        alloc_ptrs[i] = alloc((i+1)*4);
+        alloc_ptrs[i] = alloc((i+1)*5);
         //printf("Thread %ld: alloc - %p\n", pthread_self(), alloc_ptrs[i]);
     }
     return 0;
@@ -32,7 +32,7 @@ void *thread_func(void *unused)
 
 int main(void)
 {
-    set_stratergy(first);
+    set_stratergy(worst);
     pthread_t thr_ids[NO_OF_THREADS];
 
     for(int i = 0; i < NO_OF_THREADS; ++i)
