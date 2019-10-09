@@ -32,9 +32,9 @@ void *thread_func(void *unused)
 
 int main(void)
 {
-    set_stratergy(worst);
+    set_stratergy(WORST);
     pthread_t thr_ids[NO_OF_THREADS];
-/*
+
     for(int i = 0; i < NO_OF_THREADS; ++i)
     {
         if(pthread_create(&thr_ids[i], NULL, thread_func, NULL) != 0)  
@@ -52,7 +52,7 @@ int main(void)
         printf("Thread %lu joined with main.\n", thr_ids[i]);
     }
 
-*/
+/*
     void *test1 = alloc(10);
     void *test2 = alloc(8);
     void *test3 = alloc(6);
@@ -64,7 +64,7 @@ int main(void)
     dealloc(test4);
     dealloc(test5);
     alloc(5);
-
+*/
 
     list();
 

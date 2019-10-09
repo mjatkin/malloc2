@@ -7,6 +7,9 @@
  */
 #include <stddef.h>
 
+/*
+ * This is the metadata for the allocated memory pointed to by 'data'.
+ */
 struct block
 {
     struct block* next;
@@ -16,6 +19,10 @@ struct block
     void* data;
 } block;
 
+/*
+ * Linked list for storing the metadata block structs, with a read write lock
+ * that can be utilised to make the list thread safe.
+ */
 struct linked_list
 {
     struct block* head;

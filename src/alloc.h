@@ -19,7 +19,7 @@
  * worst - Finds the largest chunk and adds the remaining memory to the free
  *         list.
  */
-enum stratergy{first, best, worst};
+enum stratergy{FIRST, BEST, WORST};
 
 /*
  * Sets the search stratergy for the memory allocator.
