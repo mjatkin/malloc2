@@ -453,7 +453,6 @@ static void* alloc_worst(size_t chunk_size)
 {
     struct block* current_block = NULL; // Our temporary block pointer
     struct block* worst_block = NULL; // The currently best suited block
-    int valid = 0; // Flag to determine if the current block is valid
 
     /* Here we lock down the list for reading and attempt to find the worst
      * fitting block */
@@ -477,13 +476,12 @@ static void* alloc_worst(size_t chunk_size)
              * 
              * In both cases, if the lock is not able to be aquired, we simply
              * ignore the block and go back to searching, as this means another
-             * thread is currently wanting to use the block*/
+             * thread is currently wanting to use the block */
             if(worst_block == NULL)
             {
                 if(pthread_mutex_trylock(&current_block->lock) == 0)
                 {
                     worst_block = current_block;
-                    valid = 1;
                 }
             }
             else if(current_block->size > worst_block->size)
