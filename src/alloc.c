@@ -6,7 +6,6 @@
  * 
  * Oct 2019
  */
-#define _GNU_SOURCE
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdio.h>
