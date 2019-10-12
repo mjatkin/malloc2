@@ -89,24 +89,22 @@ void *thread_func(void *unused)
     do
     {
         pthread_mutex_lock(&allocations.lock);
-        while(1)
+        if(allocations.allocs_requested > allocations.allocs_handled)
         {
-            if(allocations.allocs_requested > allocations.allocs_handled)
-            {
-                temp_alloc = allocations.requests[allocations.allocs_handled];
-                ++allocations.allocs_handled;
-                break;
-            }
-            else
-            {
-                pthread_cond_wait(&allocations.signal, &allocations.lock);
-            }
+            temp_alloc = allocations.requests[allocations.allocs_handled];
+            ++allocations.allocs_handled;
+            pthread_mutex_unlock(&allocations.lock);
+            alloc(temp_alloc);
+            pthread_mutex_lock(&allocations.lock);
         }
+        else
+        {
+            pthread_cond_wait(&allocations.signal, &allocations.lock);
+        }   
         pthread_mutex_unlock(&allocations.lock);
+    }while(!allocations.done || allocations.allocs_requested > allocations.allocs_handled);
 
-        alloc(temp_alloc);
-
-    }while(!allocations.done || allocations.allocs_requested > allocations.allocs_handled);     
+    return 0;
 }
 
 /*
