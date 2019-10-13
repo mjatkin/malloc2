@@ -11,7 +11,7 @@ down tremendiously)
 We then run the program as release or debug depending on what we compiled
     3. run './bin/release/malloc2.out [STRATERGY]' or './bin/debug/malloc2.out [STRATERGY]'
 
-The stratergies we can use are 'first', 'best' and 'worst'
+The stratergies we can use are 'FIRST', 'BEST' and 'WORST'
 
 eg. make init
     make release
