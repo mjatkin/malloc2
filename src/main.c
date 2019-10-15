@@ -13,11 +13,11 @@
 /* The amount of blocks to initially alloc and dealloc */
 #define ARRAY_LENGTH    10000
 
-/* The amount of strings to be allocated */
-#define STRING_LENGTH   5000
-
 /* No. of threads to utilize to allocate the names */
-#define NO_OF_THREADS 4
+#define NO_OF_THREADS 1
+
+/* The amount of strings to be allocated */
+#define STRING_LENGTH   4000/NO_OF_THREADS
 
 /* Different sizes of our blocks we will intially allocate */
 #define TINY_BLOCK_SIZE 8
@@ -54,25 +54,13 @@ struct huge_block{
     char a[HUGE_BLOCK_SIZE];
 };
 
-/* This struct is used to synchronise and assign tasks to the worker threads
- *  from the main thread */
-struct allocations {
-    int allocs_requested;
-    int allocs_handled;
-    int done;
-    pthread_mutex_t lock;
-    pthread_cond_t signal;
-    pthread_barrier_t barrier;
-    int requests[ARRAY_LENGTH];
-};
-
 /* Declare these as globals so we dont have issues with overloading the stack */
 struct tiny_block* tiny_alloc[ARRAY_LENGTH];
 struct small_block* small_alloc[ARRAY_LENGTH];
 struct medium_block* medium_alloc[ARRAY_LENGTH];
 struct large_block* large_alloc[ARRAY_LENGTH];
 struct huge_block* huge_alloc[ARRAY_LENGTH];
-struct allocations allocations;
+int alloc_array[STRING_LENGTH];
 
 /*
  * This is our worker thread function that will be doing the name allocations.
@@ -82,28 +70,10 @@ struct allocations allocations;
  */
 void *thread_func(void *unused)
 {
-    int temp_alloc;
-
-    pthread_barrier_wait(&allocations.barrier);
-
-    do
-    {
-        pthread_mutex_lock(&allocations.lock);
-        if(allocations.allocs_requested > allocations.allocs_handled)
-        {
-            temp_alloc = allocations.requests[allocations.allocs_handled];
-            ++allocations.allocs_handled;
-            pthread_mutex_unlock(&allocations.lock);
-            alloc(temp_alloc);
-            pthread_mutex_lock(&allocations.lock);
-        }
-        else
-        {
-            pthread_cond_wait(&allocations.signal, &allocations.lock);
-        }   
-        pthread_mutex_unlock(&allocations.lock);
-    }while(!allocations.done || allocations.allocs_requested > allocations.allocs_handled);
-
+    for(int j = 0; j < STRING_LENGTH; ++j)
+    {   
+        alloc(alloc_array[j]);
+    }
     return 0;
 }
 
@@ -146,23 +116,6 @@ int main(int argc, char* argv[])
     {
         printf("Error: Too many arguments\n");
         exit(1);
-    }
-
-    /* Intialise all our pthread stuff */
-    if(pthread_mutex_init(&allocations.lock, NULL) != 0)
-    {
-        perror("'pthread_mutex_init' failed unexpectedly");
-        abort();
-    }
-    if(pthread_barrier_init(&allocations.barrier, NULL, NO_OF_THREADS + 1) != 0)
-    {
-        perror("'pthread_barrier_init' failed unexpectedly");
-        abort(); 
-    }
-    if(pthread_cond_init(&allocations.signal, NULL) != 0)
-    {
-        perror("'pthread_cond_init' failed unexpectedly");
-        abort(); 
     }
 
     /* Random seed */
@@ -248,11 +201,25 @@ int main(int argc, char* argv[])
 
     /* Now that we have a bunch of random blocks in our freed list
      * we can start allocating random strings and test the performace
-     * of the allocation algorithms.
-     * 
-     * We first create the specified amount of worker threads, these threads
-     * will then allocate some data when the main thread tells them to */
+     * of the allocation algorithms. */
+    FILE* names; 
+    char* line = NULL;
+    size_t len = 0;
+    names = fopen("data/first-names.txt", "r");
+    if(names == NULL)
+    {
+        printf("Can't open file!\n");
+        exit(1);
+    }
+
+    for(int j = 0; j < STRING_LENGTH; ++j)
+    {   
+        alloc_array[j] = getline(&line, &len, names);
+    }
+
+    struct timeval start, end;
     pthread_t thr_ids[NO_OF_THREADS];
+    gettimeofday(&start, NULL);
 
     for(int i = 0; i < NO_OF_THREADS; ++i)
     {
@@ -262,40 +229,6 @@ int main(int argc, char* argv[])
         }
     }
 
-    /* Wait until all our threads are ready to start */
-    pthread_barrier_wait(&allocations.barrier);
-
-    /* Open up the names file and start allocating */
-    FILE* names; 
-    names = fopen("data/first-names.txt", "r");
-    if(names == NULL)
-    {
-        printf("Can't open file!\n");
-        exit(1);
-    }
-    struct timeval start, end;
-    char* line = NULL;
-    size_t len = 0;
-
-    /* This whole allocaiton process needs to be wrapped in a timer */
-    gettimeofday(&start, NULL);
-    for(int j = 0; j < STRING_LENGTH; ++j)
-    {   
-        pthread_mutex_lock(&allocations.lock);
-        allocations.requests[allocations.allocs_requested] = getline(&line, &len, names);
-        ++allocations.allocs_requested;
-        pthread_cond_signal(&allocations.signal);
-        pthread_mutex_unlock(&allocations.lock);
-    }
-    
-    /* Mark the allocations as done */
-    pthread_mutex_lock(&allocations.lock);
-    allocations.done = 1;
-    pthread_mutex_unlock(&allocations.lock);
-
-    /* We now wake up any remaining sleeping threads and wait until all of our
-     * threads finish their jobs */
-    pthread_cond_broadcast(&allocations.signal);
     for(int i = 0; i < NO_OF_THREADS; ++i)
     {
         if(pthread_join(thr_ids[i], NULL) != 0)
@@ -310,7 +243,6 @@ int main(int argc, char* argv[])
             + (double) (end.tv_usec - start.tv_usec)/MILLI);
 
     fclose(names);
-
     printf("Main terminated.\n");
     return 0;
 }
