@@ -415,6 +415,10 @@ static void* alloc_best(size_t chunk_size)
             {
                 if(pthread_mutex_trylock(&current_block->lock) == 0)
                 {
+                    if(best_block != NULL)
+                    {
+                        pthread_mutex_unlock(&best_block->lock);
+                    }
                     best_block = current_block;
                     break;
                 }
